@@ -1,0 +1,172 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ===== Acceso al sistema =====
+
+model Rol {
+  id       Int       @id @default(autoincrement())
+  nombre   String    @unique
+  usuarios Usuario[]
+}
+
+model Usuario {
+  id       Int    @id @default(autoincrement())
+  nombre   String
+  email    String @unique
+  password String
+  rolId    Int
+  rol      Rol    @relation(fields: [rolId], references: [id])
+}
+
+// ===== Clientes y membresías =====
+
+model Cliente {
+  id                Int              @id @default(autoincrement())
+  nombre            String
+  documento         String           @unique
+  telefono          String?
+  email             String?
+  fechaNacimiento   DateTime?
+  estatura          Float?
+  fechaInscripcion  DateTime         @default(now())
+  estado            String           @default("activo")
+  membresias        Membresia[]
+  asistencias       Asistencia[]
+  rutinas           Rutina[]
+  medidasCorporales MedidaCorporal[]
+}
+
+model Plan {
+  id               Int         @id @default(autoincrement())
+  nombre           String
+  tipo             String
+  precio           Decimal
+  duracionDias     Int?
+  cantidadEntradas Int?
+  membresias       Membresia[]
+}
+
+model Membresia {
+  id                Int       @id @default(autoincrement())
+  clienteId         Int
+  planId            Int
+  fechaInicio       DateTime  @default(now())
+  fechaFin          DateTime?
+  entradasRestantes Int?
+  estado            String    @default("activa")
+  cliente           Cliente   @relation(fields: [clienteId], references: [id])
+  plan              Plan      @relation(fields: [planId], references: [id])
+  pagos             Pago[]
+}
+
+model Pago {
+  id          Int       @id @default(autoincrement())
+  membresiaId Int
+  monto       Decimal
+  fecha       DateTime  @default(now())
+  metodoPago  String
+  membresia   Membresia @relation(fields: [membresiaId], references: [id])
+}
+
+model Asistencia {
+  id        Int      @id @default(autoincrement())
+  clienteId Int
+  fecha     DateTime @default(now())
+  cliente   Cliente  @relation(fields: [clienteId], references: [id])
+}
+
+// ===== Historial de progreso físico =====
+
+model MedidaCorporal {
+  id                        Int      @id @default(autoincrement())
+  clienteId                 Int
+  fecha                     DateTime @default(now())
+  peso                      Float?
+  porcentajeGrasa           Float?
+  circunferenciaPecho       Float?
+  circunferenciaCintura     Float?
+  circunferenciaCadera      Float?
+  circunferenciaBrazo       Float?
+  circunferenciaMuslo       Float?
+  circunferenciaPantorrilla Float?
+  circunferenciaCuello      Float?
+  notas                     String?  @db.Text
+  cliente                   Cliente  @relation(fields: [clienteId], references: [id])
+}
+
+// ===== Entrenadores =====
+
+model Entrenador {
+  id           Int                 @id @default(autoincrement())
+  nombre       String
+  especialidad String?
+  telefono     String?
+  horarios     HorarioEntrenador[]
+}
+
+enum DiaSemana {
+  LUNES
+  MARTES
+  MIERCOLES
+  JUEVES
+  VIERNES
+  SABADO
+  DOMINGO
+}
+
+model HorarioEntrenador {
+  id           Int        @id @default(autoincrement())
+  entrenadorId Int
+  diaSemana    DiaSemana
+  horaInicio   String
+  horaFin      String
+  entrenador   Entrenador @relation(fields: [entrenadorId], references: [id])
+}
+
+// ===== Rutinas =====
+
+model SeccionCuerpo {
+  id         Int         @id @default(autoincrement())
+  nombre     String      @unique
+  ejercicios Ejercicio[]
+}
+
+model Ejercicio {
+  id               Int               @id @default(autoincrement())
+  nombre           String
+  descripcion      String?           @db.Text // antes era String simple (límite de 191 caracteres en MySQL); @db.Text permite texto largo sin truncarse
+  imagenUrl        String?
+  seccionCuerpoId  Int
+  seccionCuerpo    SeccionCuerpo     @relation(fields: [seccionCuerpoId], references: [id])
+  rutinaEjercicios RutinaEjercicio[]
+}
+
+model Rutina {
+  id               Int               @id @default(autoincrement())
+  clienteId        Int
+  nombre           String
+  diaSemana        DiaSemana
+  fechaCreacion    DateTime          @default(now())
+  cliente          Cliente           @relation(fields: [clienteId], references: [id])
+  rutinaEjercicios RutinaEjercicio[]
+
+  @@unique([clienteId, diaSemana])
+}
+
+model RutinaEjercicio {
+  id           Int       @id @default(autoincrement())
+  rutinaId     Int
+  ejercicioId  Int
+  series       Int
+  repeticiones Int
+  peso         String?
+  orden        Int
+  rutina       Rutina    @relation(fields: [rutinaId], references: [id])
+  ejercicio    Ejercicio @relation(fields: [ejercicioId], references: [id])
+}
