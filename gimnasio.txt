@@ -1,0 +1,3 @@
+gimnasio
+Administrador: martinmedp@gmail.com pass:admin123
+Cliente: Martin E Delgado email:martinmedp7@hotmail.com Pass:cliente123

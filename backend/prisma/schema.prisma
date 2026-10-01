@@ -7,8 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ===== Acceso al sistema =====
-
 model Rol {
   id       Int       @id @default(autoincrement())
   nombre   String    @unique
@@ -16,15 +14,18 @@ model Rol {
 }
 
 model Usuario {
-  id       Int    @id @default(autoincrement())
-  nombre   String
-  email    String @unique
-  password String
-  rolId    Int
-  rol      Rol    @relation(fields: [rolId], references: [id])
+  id                Int          @id @default(autoincrement())
+  nombre            String
+  email             String       @unique
+  password          String
+  rolId             Int
+  rol               Rol          @relation(fields: [rolId], references: [id])
+  clienteId         Int?         @unique
+  cliente           Cliente?     @relation(fields: [clienteId], references: [id])
+  activo            Boolean      @default(true)
+  pagosRegistrados  Pago[]
+  cierresRealizados CierreCaja[] // relación inversa: cierres de caja que este usuario realizó
 }
-
-// ===== Clientes y membresías =====
 
 model Cliente {
   id                Int              @id @default(autoincrement())
@@ -34,12 +35,14 @@ model Cliente {
   email             String?
   fechaNacimiento   DateTime?
   estatura          Float?
+  fotoUrl           String?
   fechaInscripcion  DateTime         @default(now())
   estado            String           @default("activo")
   membresias        Membresia[]
   asistencias       Asistencia[]
   rutinas           Rutina[]
   medidasCorporales MedidaCorporal[]
+  usuario           Usuario?
 }
 
 model Plan {
@@ -66,12 +69,37 @@ model Membresia {
 }
 
 model Pago {
-  id          Int       @id @default(autoincrement())
-  membresiaId Int
-  monto       Decimal
-  fecha       DateTime  @default(now())
-  metodoPago  String
-  membresia   Membresia @relation(fields: [membresiaId], references: [id])
+  id              Int       @id @default(autoincrement())
+  membresiaId     Int
+  monto           Decimal
+  fecha           DateTime  @default(now())
+  metodoPago      String
+  registradoPorId Int
+  registradoPor   Usuario   @relation(fields: [registradoPorId], references: [id])
+  membresia       Membresia @relation(fields: [membresiaId], references: [id])
+
+  // Nuevo: el cierre de caja que incluyó este pago. Es opcional porque
+  // un pago recién registrado todavía no pertenece a ningún cierre
+  // (null = "pendiente de cierre"; con valor = "ya cerrado")
+  cierreCajaId Int?
+  cierreCaja   CierreCaja? @relation(fields: [cierreCajaId], references: [id])
+}
+
+// Nuevo: registro de un cierre de caja. Guarda una "foto" fija de los
+// totales del periodo, no se recalcula ni se modifica después de creado
+model CierreCaja {
+  id              Int      @id @default(autoincrement())
+  fechaDesde      DateTime // inicio del periodo cerrado (inclusive)
+  fechaHasta      DateTime // fin del periodo cerrado (inclusive)
+  totalGeneral    Decimal // suma de TODOS los pagos del periodo, sin importar el método
+  totalEfectivo   Decimal // suma solo de los pagos en efectivo (lo que debería haber en caja)
+  efectivoContado Decimal // dinero que el personal contó físicamente
+  diferencia      Decimal // efectivoContado - totalEfectivo (negativo = faltante, positivo = sobrante)
+  observaciones   String?  @db.Text
+  fechaCierre     DateTime @default(now()) // cuándo se realizó el cierre (distinto del periodo cerrado)
+  cerradoPorId    Int
+  cerradoPor      Usuario  @relation(fields: [cerradoPorId], references: [id])
+  pagos           Pago[] // los pagos que quedaron incluidos en este cierre
 }
 
 model Asistencia {
@@ -80,8 +108,6 @@ model Asistencia {
   fecha     DateTime @default(now())
   cliente   Cliente  @relation(fields: [clienteId], references: [id])
 }
-
-// ===== Historial de progreso físico =====
 
 model MedidaCorporal {
   id                        Int      @id @default(autoincrement())
@@ -99,8 +125,6 @@ model MedidaCorporal {
   notas                     String?  @db.Text
   cliente                   Cliente  @relation(fields: [clienteId], references: [id])
 }
-
-// ===== Entrenadores =====
 
 model Entrenador {
   id           Int                 @id @default(autoincrement())
@@ -129,8 +153,6 @@ model HorarioEntrenador {
   entrenador   Entrenador @relation(fields: [entrenadorId], references: [id])
 }
 
-// ===== Rutinas =====
-
 model SeccionCuerpo {
   id         Int         @id @default(autoincrement())
   nombre     String      @unique
@@ -140,7 +162,7 @@ model SeccionCuerpo {
 model Ejercicio {
   id               Int               @id @default(autoincrement())
   nombre           String
-  descripcion      String?           @db.Text // antes era String simple (límite de 191 caracteres en MySQL); @db.Text permite texto largo sin truncarse
+  descripcion      String?           @db.Text
   imagenUrl        String?
   seccionCuerpoId  Int
   seccionCuerpo    SeccionCuerpo     @relation(fields: [seccionCuerpoId], references: [id])

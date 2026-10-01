@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNotification } from '../context/NotificationContext'
 import api from '../api'
 
 interface SeccionCuerpo {
@@ -17,7 +18,8 @@ interface Ejercicio {
 }
 
 function EjerciciosPage() {
-  // Formulario de creación
+  const { notificar, confirmar } = useNotification()
+
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [seccionCuerpoId, setSeccionCuerpoId] = useState('')
@@ -26,7 +28,6 @@ function EjerciciosPage() {
   const [filtroSeccion, setFiltroSeccion] = useState('')
   const [ejercicioAmpliado, setEjercicioAmpliado] = useState<Ejercicio | null>(null)
 
-  // Formulario de edición: guarda el ejercicio que se está editando (null = cerrado)
   const [ejercicioEditando, setEjercicioEditando] = useState<Ejercicio | null>(null)
   const [nombreEdit, setNombreEdit] = useState('')
   const [descripcionEdit, setDescripcionEdit] = useState('')
@@ -59,7 +60,7 @@ function EjerciciosPage() {
     e.preventDefault()
 
     if (!nombre || !seccionCuerpoId) {
-      alert('Nombre y sección del cuerpo son obligatorios')
+      notificar('Nombre y sección del cuerpo son obligatorios', 'error')
       return
     }
 
@@ -78,19 +79,18 @@ function EjerciciosPage() {
       setSeccionCuerpoId('')
       setImagen(null)
       queryClient.invalidateQueries({ queryKey: ['ejercicios'] })
+      notificar('Ejercicio agregado correctamente', 'exito')
     } catch (err) {
-      alert('Error al crear el ejercicio')
+      notificar('Error al crear el ejercicio', 'error')
     }
   }
 
-  // Se llama al hacer clic en "Editar": carga los datos actuales del ejercicio
-  // en los estados del formulario de edición, y abre el formulario
   const abrirEdicion = (ejercicio: Ejercicio) => {
     setEjercicioEditando(ejercicio)
     setNombreEdit(ejercicio.nombre)
     setDescripcionEdit(ejercicio.descripcion ?? '')
     setSeccionCuerpoIdEdit(String(ejercicio.seccionCuerpoId))
-    setImagenEdit(null) // siempre empieza vacío: solo se llena si el usuario elige reemplazar la imagen
+    setImagenEdit(null)
   }
 
   const handleActualizarEjercicio = async (e: React.FormEvent) => {
@@ -102,25 +102,34 @@ function EjerciciosPage() {
     formData.append('descripcion', descripcionEdit)
     formData.append('seccionCuerpoId', seccionCuerpoIdEdit)
     if (imagenEdit) {
-      formData.append('imagen', imagenEdit) // solo se envía si el usuario seleccionó una nueva
+      formData.append('imagen', imagenEdit)
     }
 
     try {
       await api.put(`/ejercicios/${ejercicioEditando.id}`, formData)
       setEjercicioEditando(null)
       queryClient.invalidateQueries({ queryKey: ['ejercicios'] })
+      notificar('Ejercicio actualizado correctamente', 'exito')
     } catch (err) {
-      alert('Error al actualizar el ejercicio')
+      notificar('Error al actualizar el ejercicio', 'error')
     }
   }
 
+  // El handler ahora es async: "await confirmar(...)" espera a que el
+  // usuario responda en el modal personalizado antes de continuar
   const handleEliminarEjercicio = async (id: number) => {
-    if (!confirm('¿Eliminar este ejercicio?')) return
+    const confirmado = await confirmar('¿Eliminar este ejercicio?', {
+      variante: 'peligro',
+      textoAceptar: 'Eliminar',
+    })
+    if (!confirmado) return
+
     try {
       await api.delete(`/ejercicios/${id}`)
       queryClient.invalidateQueries({ queryKey: ['ejercicios'] })
+      notificar('Ejercicio eliminado', 'exito')
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Error al eliminar el ejercicio')
+      notificar(err.response?.data?.error || 'Error al eliminar el ejercicio', 'error')
     }
   }
 
@@ -233,7 +242,6 @@ function EjerciciosPage() {
         </div>
       )}
 
-      {/* Modal de imagen ampliada */}
       {ejercicioAmpliado && ejercicioAmpliado.imagenUrl && (
         <div
           onClick={() => setEjercicioAmpliado(null)}
@@ -255,9 +263,6 @@ function EjerciciosPage() {
         </div>
       )}
 
-      {/* Modal de edición: mismo patrón de overlay que el de la imagen ampliada,
-          pero aquí el clic en el fondo NO cierra el modal (para no perder cambios
-          por accidente); solo se cierra con el botón "Cancelar" */}
       {ejercicioEditando && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-8">
           <form
@@ -295,7 +300,6 @@ function EjerciciosPage() {
               rows={2}
             />
 
-            {/* Muestra la imagen actual como referencia, si existe */}
             {ejercicioEditando.imagenUrl && (
               <div>
                 <p className="text-slate-400 text-xs mb-1">Imagen actual:</p>

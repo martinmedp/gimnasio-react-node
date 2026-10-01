@@ -1,0 +1,18 @@
+# Dependencias (se regeneran con npm install, nunca se versionan)
+node_modules/
+
+# Variables de entorno con datos sensibles (DATABASE_URL, JWT_SECRET)
+.env
+
+# Carpetas de compilación
+dist/
+build/
+
+# Imágenes subidas por los usuarios del sistema (datos, no código)
+backend/uploads/ejercicios/*
+!backend/uploads/ejercicios/.gitkeep
+
+# Archivos y carpetas propios de cada sistema operativo/editor
+.DS_Store
+.vscode/
+*.log

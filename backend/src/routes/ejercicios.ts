@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import prisma from '../prisma';
-import { verificarToken } from '../middleware/auth';
+import { verificarToken, verificarRol } from '../middleware/auth';
 
 const router = Router();
 
@@ -18,7 +18,8 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
-// GET /ejercicios — lista todos los ejercicios, incluyendo su sección de cuerpo
+// GET /ejercicios — el catálogo se puede VER por cualquier rol logueado
+// (incluido Cliente, para revisar cómo hacer sus ejercicios asignados)
 router.get('/', verificarToken, async (req, res) => {
   try {
     const ejercicios = await prisma.ejercicio.findMany({
@@ -32,8 +33,9 @@ router.get('/', verificarToken, async (req, res) => {
   }
 });
 
-// POST /ejercicios — crea un nuevo ejercicio, con imagen opcional
-router.post('/', verificarToken, upload.single('imagen'), async (req, res) => {
+// POST /ejercicios — crear ejercicios en el catálogo: Administrador y
+// Entrenador (el experto en la materia). Recepcionista y Cliente, solo ver
+router.post('/', verificarToken, verificarRol('Administrador', 'Entrenador'), upload.single('imagen'), async (req, res) => {
   try {
     const { nombre, descripcion, seccionCuerpoId } = req.body;
 
@@ -59,9 +61,8 @@ router.post('/', verificarToken, upload.single('imagen'), async (req, res) => {
   }
 });
 
-// PUT /ejercicios/:id — actualiza un ejercicio existente
-// La imagen es opcional en la edición: si no se sube una nueva, se conserva la actual
-router.put('/:id', verificarToken, upload.single('imagen'), async (req, res) => {
+// PUT /ejercicios/:id — mismo criterio que crear: Administrador y Entrenador
+router.put('/:id', verificarToken, verificarRol('Administrador', 'Entrenador'), upload.single('imagen'), async (req, res) => {
   try {
     const { id } = req.params;
     const { nombre, descripcion, seccionCuerpoId } = req.body;
@@ -70,9 +71,6 @@ router.put('/:id', verificarToken, upload.single('imagen'), async (req, res) => 
       return res.status(400).json({ error: 'Nombre y sección del cuerpo son obligatorios' });
     }
 
-    // Armamos el objeto de datos a actualizar dinámicamente:
-    // solo incluimos "imagenUrl" si el usuario subió un archivo nuevo.
-    // Así, si no sube imagen, Prisma no toca ese campo y se conserva el valor anterior
     const datosActualizar: any = {
       nombre,
       descripcion: descripcion || null,
@@ -81,10 +79,6 @@ router.put('/:id', verificarToken, upload.single('imagen'), async (req, res) => 
 
     if (req.file) {
       datosActualizar.imagenUrl = `/uploads/ejercicios/${req.file.filename}`;
-      // Nota de aprendizaje: aquí estamos dejando "huérfana" la imagen anterior
-      // en el disco (no la borramos). Para un proyecto real, se borraría el
-      // archivo viejo con fs.unlink() antes de guardar el nuevo, para no
-      // acumular archivos sin uso. Lo dejamos simple por ahora.
     }
 
     const ejercicioActualizado = await prisma.ejercicio.update({
@@ -102,8 +96,9 @@ router.put('/:id', verificarToken, upload.single('imagen'), async (req, res) => 
   }
 });
 
-// DELETE /ejercicios/:id — elimina un ejercicio
-router.delete('/:id', verificarToken, async (req, res) => {
+// DELETE /ejercicios/:id — acción destructiva, exclusiva de Administrador
+// (afecta rutinas existentes que lo usen)
+router.delete('/:id', verificarToken, verificarRol('Administrador'), async (req, res) => {
   try {
     const { id } = req.params;
 

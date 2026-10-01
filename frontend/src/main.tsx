@@ -5,17 +5,21 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import './index.css'
 import App from './App.tsx'
 import { AuthProvider } from './context/AuthContext.tsx'
+import { NotificationProvider } from './context/NotificationContext.tsx'
 
 const queryClient = new QueryClient()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {/* BrowserRouter habilita el uso de rutas (Routes, Route, Link, etc.) en toda la app */}
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
-        {/* AuthProvider debe envolver todo lo que necesite saber si hay sesión iniciada */}
         <AuthProvider>
-          <App />
+          {/* NotificationProvider va dentro de AuthProvider (el orden entre
+              ellos no importa aquí, ninguno depende del otro), pero debe
+              envolver a App para que cualquier página pueda usar useNotification() */}
+          <NotificationProvider>
+            <App />
+          </NotificationProvider>
         </AuthProvider>
       </QueryClientProvider>
     </BrowserRouter>

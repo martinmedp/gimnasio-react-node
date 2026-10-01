@@ -9,7 +9,7 @@ function LoginPage() {
   const [error, setError] = useState('')
 
   const { login } = useAuth()
-  const navigate = useNavigate() // permite redirigir a otra ruta por código
+  const navigate = useNavigate()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -17,10 +17,14 @@ function LoginPage() {
 
     try {
       const response = await api.post('/auth/login', { email, password })
-      login(response.data.token) // guarda el token y actualiza el estado global
-      navigate('/') // redirige al dashboard tras el login exitoso
-    } catch (err) {
-      setError('Credenciales inválidas')
+      // Ahora pasamos también response.data.usuario (que el backend ya
+      // venía devolviendo desde el principio, solo que antes lo ignorábamos)
+      login(response.data.token, response.data.usuario)
+      navigate('/')
+    } catch (err: any) {
+      // Mostramos el mensaje específico del backend si existe (por ejemplo,
+      // "cuenta pendiente de activación"), en vez de un genérico siempre
+      setError(err.response?.data?.error || 'Credenciales inválidas')
     }
   }
 
@@ -50,6 +54,14 @@ function LoginPage() {
         <button type="submit" className="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">
           Entrar
         </button>
+
+        {/* Enlace hacia el registro público, para un Cliente nuevo */}
+        <p className="text-slate-400 text-sm text-center mt-4">
+          ¿Eres nuevo?{' '}
+          <a href="/registro" className="text-blue-400 hover:underline">
+            Crea tu cuenta aquí
+          </a>
+        </p>
       </form>
     </div>
   )

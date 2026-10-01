@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNotification } from '../context/NotificationContext'
 import api from '../api'
 
 interface Cliente {
@@ -54,11 +55,11 @@ const medidaVacia: NuevaMedidaForm = {
 
 function MedidasPage() {
   const { id } = useParams<{ id: string }>()
+  const { notificar, confirmar } = useNotification()
 
   const [nuevaMedida, setNuevaMedida] = useState<NuevaMedidaForm>(medidaVacia)
   const queryClient = useQueryClient()
 
-  // Trae los datos del cliente (nombre, documento) para mostrarlos como encabezado
   const { data: cliente } = useQuery<Cliente>({
     queryKey: ['cliente', id],
     queryFn: async () => {
@@ -67,8 +68,6 @@ function MedidasPage() {
     },
   })
 
-  // Trae el historial de medidas de este cliente, ya con el IMC calculado
-  // desde el backend (usa la estatura del cliente + el peso de cada medida)
   const { data: medidas, isLoading, isError } = useQuery<MedidaCorporal[]>({
     queryKey: ['medidas', id],
     queryFn: async () => {
@@ -83,18 +82,25 @@ function MedidasPage() {
       await api.post('/medidas', { ...nuevaMedida, clienteId: id })
       setNuevaMedida(medidaVacia)
       queryClient.invalidateQueries({ queryKey: ['medidas', id] })
+      notificar('Medición registrada correctamente', 'exito')
     } catch (err) {
-      alert('Error al registrar la medida')
+      notificar('Error al registrar la medida', 'error')
     }
   }
 
   const handleEliminarMedida = async (medidaId: number) => {
-    if (!confirm('¿Eliminar este registro de medida?')) return
+    const confirmado = await confirmar('¿Eliminar este registro de medida?', {
+      variante: 'peligro',
+      textoAceptar: 'Eliminar',
+    })
+    if (!confirmado) return
+
     try {
       await api.delete(`/medidas/${medidaId}`)
       queryClient.invalidateQueries({ queryKey: ['medidas', id] })
+      notificar('Medida eliminada', 'exito')
     } catch (err) {
-      alert('Error al eliminar la medida')
+      notificar('Error al eliminar la medida', 'error')
     }
   }
 

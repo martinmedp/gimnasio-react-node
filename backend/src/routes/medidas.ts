@@ -1,65 +1,59 @@
 import { Router } from 'express';
 import prisma from '../prisma';
-import { verificarToken } from '../middleware/auth';
+import { verificarToken, verificarRol, verificarPropioCliente } from '../middleware/auth';
 
 const router = Router();
 
-// Función auxiliar: convierte un valor de texto (o vacío) a número o null.
-// La reutilizamos varias veces abajo para no repetir la misma lógica de conversión
 function aNumeroONull(valor: any): number | null {
   if (valor === undefined || valor === null || valor === '') return null;
   const num = Number(valor);
   return isNaN(num) ? null : num;
 }
 
-// Calcula el IMC a partir del peso (kg) y la estatura (cm).
-// Fórmula: peso / (estatura en metros)^2
-// Devuelve null si falta alguno de los dos datos, ya que no se puede calcular
 function calcularImc(pesoKg: number | null, estaturaCm: number | null): number | null {
   if (!pesoKg || !estaturaCm) return null;
-
-  const estaturaM = estaturaCm / 100; // convertimos centímetros a metros
+  const estaturaM = estaturaCm / 100;
   const imc = pesoKg / (estaturaM * estaturaM);
-
-  // Redondeamos a 1 decimal (ej. 24.3) para que se vea limpio en pantalla
   return Math.round(imc * 10) / 10;
 }
 
-// GET /medidas/cliente/:clienteId — trae el historial de medidas de un cliente,
-// incluyendo el IMC calculado en cada registro (no se guarda en la BD, se calcula al vuelo)
-router.get('/cliente/:clienteId', verificarToken, async (req, res) => {
-  try {
-    const { clienteId } = req.params;
+// GET /medidas/cliente/:clienteId — según la matriz, Recepcionista NO
+// gestiona medidas (no es su función); Administrador y Entrenador sí,
+// y un Cliente puede ver únicamente las suyas
+router.get(
+  '/cliente/:clienteId',
+  verificarToken,
+  verificarRol('Administrador', 'Entrenador', 'Cliente'),
+  verificarPropioCliente((req) => Number(req.params.clienteId)),
+  async (req, res) => {
+    try {
+      const { clienteId } = req.params;
 
-    // Traemos también la estatura del cliente, ya que el IMC la necesita
-    // y ese dato vive en la tabla Cliente, no en MedidaCorporal.
-    // select trae solo este campo, más eficiente que traer todo el cliente completo
-    const cliente = await prisma.cliente.findUnique({
-      where: { id: Number(clienteId) },
-      select: { estatura: true },
-    });
+      const cliente = await prisma.cliente.findUnique({
+        where: { id: Number(clienteId) },
+        select: { estatura: true },
+      });
 
-    const medidas = await prisma.medidaCorporal.findMany({
-      where: { clienteId: Number(clienteId) },
-      orderBy: { fecha: 'desc' },
-    });
+      const medidas = await prisma.medidaCorporal.findMany({
+        where: { clienteId: Number(clienteId) },
+        orderBy: { fecha: 'desc' },
+      });
 
-    // .map() recorre cada medida y le agrega un campo nuevo "imc",
-    // sin modificar los datos originales que vienen de la base de datos
-    const medidasConImc = medidas.map((medida) => ({
-      ...medida,
-      imc: calcularImc(medida.peso, cliente?.estatura ?? null),
-    }));
+      const medidasConImc = medidas.map((medida) => ({
+        ...medida,
+        imc: calcularImc(medida.peso, cliente?.estatura ?? null),
+      }));
 
-    res.json(medidasConImc);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al obtener las medidas del cliente' });
+      res.json(medidasConImc);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Error al obtener las medidas del cliente' });
+    }
   }
-});
+);
 
-// POST /medidas — registra una nueva medición para un cliente
-router.post('/', verificarToken, async (req, res) => {
+// POST /medidas — registrar una medición: Administrador y Entrenador
+router.post('/', verificarToken, verificarRol('Administrador', 'Entrenador'), async (req, res) => {
   try {
     const {
       clienteId,
@@ -97,7 +91,6 @@ router.post('/', verificarToken, async (req, res) => {
 
     res.status(201).json(nuevaMedida);
   } catch (error: any) {
-    // P2003 significaría que el clienteId enviado no existe en la tabla Cliente
     if (error.code === 'P2003') {
       return res.status(400).json({ error: 'El cliente indicado no existe' });
     }
@@ -106,8 +99,8 @@ router.post('/', verificarToken, async (req, res) => {
   }
 });
 
-// DELETE /medidas/:id — elimina un registro de medida (ej. si se capturó por error)
-router.delete('/:id', verificarToken, async (req, res) => {
+// DELETE /medidas/:id — mismo criterio que crear: Administrador y Entrenador
+router.delete('/:id', verificarToken, verificarRol('Administrador', 'Entrenador'), async (req, res) => {
   try {
     const { id } = req.params;
 

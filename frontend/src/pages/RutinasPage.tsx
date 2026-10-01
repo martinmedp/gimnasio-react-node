@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNotification } from '../context/NotificationContext'
 import api from '../api'
 
 interface Cliente {
@@ -42,16 +43,14 @@ const DIAS_SEMANA = ['LUNES', 'MARTES', 'MIERCOLES', 'JUEVES', 'VIERNES', 'SABAD
 
 function formatearPeso(peso: string | null): string {
   if (!peso) return 'sin peso'
-
   const valores = peso.split(',').map((v) => v.trim()).filter((v) => v !== '')
-
   if (valores.length <= 1) return `${peso} kg`
-
   return valores.map((v) => `${v}kg`).join(', ')
 }
 
 function RutinasPage() {
   const { id } = useParams<{ id: string }>()
+  const { notificar, confirmar } = useNotification()
   const queryClient = useQueryClient()
 
   const [nombreRutina, setNombreRutina] = useState('')
@@ -113,18 +112,25 @@ function RutinasPage() {
       await api.post('/rutinas', { clienteId: id, nombre: nombreRutina, diaSemana: diaRutina })
       setNombreRutina('')
       queryClient.invalidateQueries({ queryKey: ['rutinas', id] })
+      notificar('Rutina creada correctamente', 'exito')
     } catch (err: any) {
-      alert(err.response?.data?.error || 'Error al crear la rutina')
+      notificar(err.response?.data?.error || 'Error al crear la rutina', 'error')
     }
   }
 
   const handleEliminarRutina = async (rutinaId: number) => {
-    if (!confirm('¿Eliminar esta rutina completa, con todos sus ejercicios?')) return
+    const confirmado = await confirmar('¿Eliminar esta rutina completa, con todos sus ejercicios?', {
+      variante: 'peligro',
+      textoAceptar: 'Eliminar',
+    })
+    if (!confirmado) return
+
     try {
       await api.delete(`/rutinas/${rutinaId}`)
       queryClient.invalidateQueries({ queryKey: ['rutinas', id] })
+      notificar('Rutina eliminada', 'exito')
     } catch (err) {
-      alert('Error al eliminar la rutina')
+      notificar('Error al eliminar la rutina', 'error')
     }
   }
 
@@ -141,7 +147,7 @@ function RutinasPage() {
     e.preventDefault()
 
     if (!ejercicioSeleccionado || !series || !repeticiones) {
-      alert('Selecciona un ejercicio, y completa series y repeticiones')
+      notificar('Selecciona un ejercicio, y completa series y repeticiones', 'error')
       return
     }
 
@@ -154,8 +160,9 @@ function RutinasPage() {
       })
       setRutinaAgregandoEjercicio(null)
       queryClient.invalidateQueries({ queryKey: ['rutinas', id] })
+      notificar('Ejercicio agregado a la rutina', 'exito')
     } catch (err) {
-      alert('Error al agregar el ejercicio')
+      notificar('Error al agregar el ejercicio', 'error')
     }
   }
 
@@ -171,7 +178,7 @@ function RutinasPage() {
     if (!itemEditando) return
 
     if (!seriesEdit || !repeticionesEdit) {
-      alert('Series y repeticiones son obligatorios')
+      notificar('Series y repeticiones son obligatorios', 'error')
       return
     }
 
@@ -183,18 +190,25 @@ function RutinasPage() {
       })
       setItemEditando(null)
       queryClient.invalidateQueries({ queryKey: ['rutinas', id] })
+      notificar('Ejercicio actualizado', 'exito')
     } catch (err) {
-      alert('Error al actualizar el ejercicio')
+      notificar('Error al actualizar el ejercicio', 'error')
     }
   }
 
   const handleQuitarEjercicio = async (rutinaId: number, rutinaEjercicioId: number) => {
-    if (!confirm('¿Quitar este ejercicio de la rutina?')) return
+    const confirmado = await confirmar('¿Quitar este ejercicio de la rutina?', {
+      variante: 'peligro',
+      textoAceptar: 'Quitar',
+    })
+    if (!confirmado) return
+
     try {
       await api.delete(`/rutinas/${rutinaId}/ejercicios/${rutinaEjercicioId}`)
       queryClient.invalidateQueries({ queryKey: ['rutinas', id] })
+      notificar('Ejercicio quitado de la rutina', 'exito')
     } catch (err) {
-      alert('Error al quitar el ejercicio')
+      notificar('Error al quitar el ejercicio', 'error')
     }
   }
 
@@ -419,36 +433,27 @@ function RutinasPage() {
         ))}
       </div>
 
-      {/* Modal de revisión del ejercicio.
-          NUEVO ENFOQUE: en vez de que toda la pantalla tenga scroll, le damos
-          una altura máxima fija a la TARJETA del modal (max-h-[85vh]) y el
-          scroll vive directamente en ella (overflow-y-auto). Este patrón es
-          el estándar más confiable para modales con contenido variable,
-          y evita cualquier rareza de CSS con el centrado automático */}
       {ejercicioAmpliado && ejercicioAmpliado.imagenUrl && (
         <div
           onClick={() => setEjercicioAmpliado(null)}
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 cursor-pointer"
+          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-8 cursor-pointer"
         >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-slate-900 rounded max-w-3xl w-full max-h-[85vh] overflow-y-auto p-4 cursor-default"
-          >
+          <div className="max-w-3xl w-full">
             <img
               src={`http://localhost:3000${ejercicioAmpliado.imagenUrl}`}
               alt={ejercicioAmpliado.nombre}
-              className="w-full max-h-[50vh] object-contain rounded"
+              className="w-full max-h-[80vh] object-contain rounded"
             />
             <p className="text-white text-center mt-4 text-lg font-bold">
               {ejercicioAmpliado.nombre}
             </p>
             {ejercicioAmpliado.descripcion && (
-              <p className="text-slate-300 text-center text-sm mt-2 whitespace-pre-wrap">
+              <p className="text-slate-300 text-center text-sm mt-1">
                 {ejercicioAmpliado.descripcion}
               </p>
             )}
-            <p className="text-slate-400 text-center text-xs mt-4">
-              Haz clic fuera de esta tarjeta para cerrar y volver a la rutina
+            <p className="text-slate-400 text-center text-xs mt-2">
+              Haz clic en cualquier parte para cerrar y volver a la rutina
             </p>
           </div>
         </div>

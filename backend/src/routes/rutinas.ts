@@ -1,35 +1,43 @@
 import { Router } from 'express';
 import prisma from '../prisma';
-import { verificarToken } from '../middleware/auth';
+import { verificarToken, verificarRol, verificarPropioCliente } from '../middleware/auth';
 
 const router = Router();
 
-// GET /rutinas/cliente/:clienteId — trae todas las rutinas de un cliente,
-// cada una con sus ejercicios asignados
-router.get('/cliente/:clienteId', verificarToken, async (req, res) => {
-  try {
-    const { clienteId } = req.params;
+// GET /rutinas/cliente/:clienteId — Administrador, Recepcionista (solo ver)
+// y Entrenador pueden ver las rutinas de cualquier cliente; un Cliente
+// solo puede ver las suyas propias (verificarPropioCliente lo garantiza)
+router.get(
+  '/cliente/:clienteId',
+  verificarToken,
+  verificarRol('Administrador', 'Recepcionista', 'Entrenador', 'Cliente'),
+  verificarPropioCliente((req) => Number(req.params.clienteId)),
+  async (req, res) => {
+    try {
+      const { clienteId } = req.params;
 
-    const rutinas = await prisma.rutina.findMany({
-      where: { clienteId: Number(clienteId) },
-      include: {
-        rutinaEjercicios: {
-          include: { ejercicio: true },
-          orderBy: { orden: 'asc' },
+      const rutinas = await prisma.rutina.findMany({
+        where: { clienteId: Number(clienteId) },
+        include: {
+          rutinaEjercicios: {
+            include: { ejercicio: true },
+            orderBy: { orden: 'asc' },
+          },
         },
-      },
-      orderBy: { diaSemana: 'asc' },
-    });
+        orderBy: { diaSemana: 'asc' },
+      });
 
-    res.json(rutinas);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al obtener las rutinas del cliente' });
+      res.json(rutinas);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Error al obtener las rutinas del cliente' });
+    }
   }
-});
+);
 
-// POST /rutinas — crea una nueva rutina para un cliente, asignada a un día específico
-router.post('/', verificarToken, async (req, res) => {
+// POST /rutinas — crear una rutina (asignar un día a un cliente):
+// Administrador y Entrenador, ya que Recepcionista solo tiene permiso de ver
+router.post('/', verificarToken, verificarRol('Administrador', 'Entrenador'), async (req, res) => {
   try {
     const { clienteId, nombre, diaSemana } = req.body;
 
@@ -55,8 +63,9 @@ router.post('/', verificarToken, async (req, res) => {
   }
 });
 
-// DELETE /rutinas/:id — elimina una rutina completa, junto con sus ejercicios
-router.delete('/:id', verificarToken, async (req, res) => {
+// DELETE /rutinas/:id — eliminar la rutina COMPLETA de un día, exclusivo
+// de Administrador (más destructivo que quitar un solo ejercicio)
+router.delete('/:id', verificarToken, verificarRol('Administrador'), async (req, res) => {
   try {
     const { id } = req.params;
     const rutinaId = Number(id);
@@ -76,8 +85,9 @@ router.delete('/:id', verificarToken, async (req, res) => {
   }
 });
 
-// POST /rutinas/:rutinaId/ejercicios — agrega un ejercicio a una rutina existente
-router.post('/:rutinaId/ejercicios', verificarToken, async (req, res) => {
+// POST /rutinas/:rutinaId/ejercicios — agregar un ejercicio a una rutina:
+// Administrador y Entrenador (mismo criterio que crear la rutina en sí)
+router.post('/:rutinaId/ejercicios', verificarToken, verificarRol('Administrador', 'Entrenador'), async (req, res) => {
   try {
     const { rutinaId } = req.params;
     const { ejercicioId, series, repeticiones, peso, orden } = req.body;
@@ -108,10 +118,9 @@ router.post('/:rutinaId/ejercicios', verificarToken, async (req, res) => {
   }
 });
 
-// PUT /rutinas/:rutinaId/ejercicios/:rutinaEjercicioId — edita series, repeticiones
-// y/o peso de un ejercicio ya asignado a una rutina (no cambia el ejercicio en sí,
-// solo estos datos de la asignación)
-router.put('/:rutinaId/ejercicios/:rutinaEjercicioId', verificarToken, async (req, res) => {
+// PUT /rutinas/:rutinaId/ejercicios/:rutinaEjercicioId — editar series,
+// repeticiones o peso de un ejercicio asignado: Administrador y Entrenador
+router.put('/:rutinaId/ejercicios/:rutinaEjercicioId', verificarToken, verificarRol('Administrador', 'Entrenador'), async (req, res) => {
   try {
     const { rutinaEjercicioId } = req.params;
     const { series, repeticiones, peso } = req.body;
@@ -127,7 +136,7 @@ router.put('/:rutinaId/ejercicios/:rutinaEjercicioId', verificarToken, async (re
         repeticiones: Number(repeticiones),
         peso: peso || null,
       },
-      include: { ejercicio: true }, // devolvemos también el ejercicio, para actualizar la vista de inmediato
+      include: { ejercicio: true },
     });
 
     res.json(itemActualizado);
@@ -140,8 +149,9 @@ router.put('/:rutinaId/ejercicios/:rutinaEjercicioId', verificarToken, async (re
   }
 });
 
-// DELETE /rutinas/:rutinaId/ejercicios/:rutinaEjercicioId — quita un ejercicio de una rutina
-router.delete('/:rutinaId/ejercicios/:rutinaEjercicioId', verificarToken, async (req, res) => {
+// DELETE /rutinas/:rutinaId/ejercicios/:rutinaEjercicioId — quitar un
+// ejercicio de una rutina: Administrador y Entrenador
+router.delete('/:rutinaId/ejercicios/:rutinaEjercicioId', verificarToken, verificarRol('Administrador', 'Entrenador'), async (req, res) => {
   try {
     const { rutinaEjercicioId } = req.params;
 
