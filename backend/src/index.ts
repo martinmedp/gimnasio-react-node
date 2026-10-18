@@ -15,6 +15,9 @@ import asistenciasRouter from './routes/asistencias';
 import entrenadoresRouter from './routes/entrenadores';
 import pagosRouter from './routes/pagos';
 import cierresRouter from './routes/cierres';
+import categoriasGastoRouter from './routes/categoriasGasto';
+import gastosRouter from './routes/gastos';
+import estadisticasRouter from './routes/estadisticas';
 
 const app = express();
 const PORT = 3000;
@@ -42,6 +45,9 @@ app.use('/asistencias', asistenciasRouter);
 app.use('/entrenadores', entrenadoresRouter);
 app.use('/pagos', pagosRouter);
 app.use('/cierres', cierresRouter);
+app.use('/categorias-gasto', categoriasGastoRouter);
+app.use('/gastos', gastosRouter);
+app.use('/estadisticas', estadisticasRouter);
 
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);

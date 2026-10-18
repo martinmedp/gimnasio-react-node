@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Html5Qrcode } from 'html5-qrcode'
 import { useNotification } from '../context/NotificationContext'
 import api from '../api'
+import TarjetaDato from '../components/TarjetaDato'
 import { formatearFechaHora, rangoPreset } from '../utils/formato'
 
 interface Cliente {
@@ -18,6 +19,14 @@ interface Asistencia {
   cliente: Cliente
 }
 
+// Forma de la respuesta de GET /asistencias/contador
+interface Contador {
+  hoy: number
+  semana: number
+  mes: number
+  total: number
+}
+
 function AsistenciaPage() {
   const { notificar } = useNotification()
   const queryClient = useQueryClient()
@@ -27,8 +36,6 @@ function AsistenciaPage() {
   const [descontarTiquetera, setDescontarTiquetera] = useState(true)
   const [escanerPausado, setEscanerPausado] = useState(false)
 
-  // Filtros del historial. Vacíos por defecto: sin fechas se interpreta
-  // como "sin filtrar por fecha", igual que ya hace PagosPage con "todo el historial"
   const [filtroDesde, setFiltroDesde] = useState('')
   const [filtroHasta, setFiltroHasta] = useState('')
   const [filtroClienteId, setFiltroClienteId] = useState('')
@@ -53,7 +60,6 @@ function AsistenciaPage() {
     },
   })
 
-  // Armamos los filtros solo con lo que tenga valor, igual que en PagosPage
   const params: Record<string, string> = {}
   if (filtroDesde && filtroHasta) {
     params.desde = filtroDesde
@@ -63,9 +69,6 @@ function AsistenciaPage() {
 
   const rangoIncompleto = (filtroDesde !== '') !== (filtroHasta !== '')
 
-  // El historial filtrado es una consulta aparte de "asistencias de hoy":
-  // esta sí cambia según los filtros (va en la queryKey), mientras que
-  // la de arriba siempre muestra el día actual sin importar los filtros
   const { data: historial, isLoading: cargandoHistorial, isError: errorHistorial } = useQuery<Asistencia[]>({
     queryKey: ['asistencias-historial', params],
     queryFn: async () => {
@@ -73,6 +76,24 @@ function AsistenciaPage() {
       return response.data
     },
   })
+
+  // Contadores de entradas (hoy, semana, mes y total). Dependen SOLO del
+  // cliente seleccionado: sus periodos son fijos y los calcula el servidor,
+  // por eso no usan las fechas del filtro. El id del cliente va en la
+  // queryKey para que al cambiar de cliente se vuelvan a pedir los números
+  const { data: contador } = useQuery<Contador>({
+    queryKey: ['asistencias-contador', filtroClienteId],
+    queryFn: async () => {
+      const response = await api.get('/asistencias/contador', {
+        params: filtroClienteId ? { clienteId: filtroClienteId } : {},
+      })
+      return response.data
+    },
+  })
+
+  // El cliente seleccionado en el filtro (si hay uno), para mostrar su
+  // nombre en el título de los contadores
+  const clienteFiltrado = clientes?.find((c) => String(c.id) === filtroClienteId)
 
   const registrarPorDocumento = async (documento: string) => {
     const cliente = clientes?.find((c) => c.documento === documento.trim())
@@ -96,9 +117,9 @@ function AsistenciaPage() {
       notificar(texto, 'exito')
 
       queryClient.invalidateQueries({ queryKey: ['asistencias-hoy'] })
-      // El historial también puede incluir el día de hoy, así que lo
-      // refrescamos para que la nueva asistencia aparezca ahí también
       queryClient.invalidateQueries({ queryKey: ['asistencias-historial'] })
+      // Los contadores también cambian con cada entrada nueva
+      queryClient.invalidateQueries({ queryKey: ['asistencias-contador'] })
     } catch (err) {
       notificar('Error al registrar la asistencia', 'error')
     }
@@ -276,7 +297,7 @@ function AsistenciaPage() {
         ))}
       </div>
 
-      {/* ===== Historial por rango de fechas y/o cliente ===== */}
+      {/* ===== Historial y contador de entradas ===== */}
       <h2 className="text-xl font-bold text-white mb-3">Historial de asistencias</h2>
 
       <div className="bg-slate-800 rounded p-4 mb-6">
@@ -354,6 +375,24 @@ function AsistenciaPage() {
         )}
       </div>
 
+      {/* Contador de entradas: periodos fijos calculados por el servidor.
+          Solo cambia con el filtro de Cliente; las fechas de arriba afectan
+          a la tabla de abajo, no a estas tarjetas */}
+      <div className="mb-6">
+        <h3 className="text-white font-bold text-sm mb-1">
+          Contador de entradas — {clienteFiltrado ? clienteFiltrado.nombre : 'todo el gimnasio'}
+        </h3>
+        <p className="text-slate-400 text-xs mb-2">
+          Usa periodos fijos (hoy, esta semana, este mes y total) y solo respeta el filtro de cliente.
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-2xl">
+          <TarjetaDato titulo="Hoy" valor={contador ? String(contador.hoy) : '-'} />
+          <TarjetaDato titulo="Esta semana" valor={contador ? String(contador.semana) : '-'} />
+          <TarjetaDato titulo="Este mes" valor={contador ? String(contador.mes) : '-'} />
+          <TarjetaDato titulo="Total" valor={contador ? String(contador.total) : '-'} />
+        </div>
+      </div>
+
       {cargandoHistorial && <p className="text-white">Cargando historial...</p>}
       {errorHistorial && <p className="text-red-400">Error al cargar el historial (revisa el rango de fechas)</p>}
 
@@ -381,7 +420,7 @@ function AsistenciaPage() {
               ))}
             </tbody>
           </table>
-          <p className="text-slate-400 text-sm mt-2">Total: {historial.length} asistencia(s)</p>
+          <p className="text-slate-400 text-sm mt-2">Entradas en esta selección: {historial.length}</p>
         </div>
       )}
     </div>

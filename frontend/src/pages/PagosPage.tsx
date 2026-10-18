@@ -6,6 +6,7 @@ import TarjetaDato from '../components/TarjetaDato'
 import TablaPagos, { ChipsMetodo } from '../components/TablaPagos'
 import { formatearDinero, rangoPreset } from '../utils/formato'
 import type { PagosConResumen } from '../types/contabilidad'
+import { abrirPdf } from '../utils/descargarPdf'
 
 function PagosPage() {
   const { usuario } = useAuth()
@@ -169,7 +170,15 @@ function PagosPage() {
           </div>
 
           <TablaPagos pagos={data.pagos} mostrarCierre />
+          <button
+            onClick={() => abrirPdf('/pagos/reporte/pdf', params)}
+            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 mb-4"
+          >
+            Descargar reporte PDF
+          </button>
         </>
+
+
       )}
     </div>
   )

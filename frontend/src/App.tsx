@@ -16,6 +16,9 @@ import AsistenciaPage from './pages/AsistenciaPage'
 import EntrenadoresPage from './pages/EntrenadoresPage'
 import PagosPage from './pages/PagosPage'
 import CierresPage from './pages/CierresPage'
+import CategoriasGastoPage from './pages/CategoriasGastoPage'
+import GastosPage from './pages/GastosPage'
+import MiAsistenciaPage from './pages/MiAsistenciaPage'
 
 function App() {
   return (
@@ -38,6 +41,9 @@ function App() {
           <Route path="/entrenadores" element={<EntrenadoresPage />} />
           <Route path="/pagos" element={<PagosPage />} />
           <Route path="/cierres" element={<CierresPage />} />
+          <Route path="/categorias-gasto" element={<CategoriasGastoPage />} />
+          <Route path="/gastos" element={<GastosPage />} />
+          <Route path="/mi-asistencia" element={<MiAsistenciaPage />} />
         </Route>
       </Route>
     </Routes>

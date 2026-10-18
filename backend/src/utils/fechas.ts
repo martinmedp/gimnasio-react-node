@@ -27,3 +27,46 @@ export function rangoDeFechas(desde: unknown, hasta: unknown): { inicio: Date; f
 
   return { inicio, fin };
 }
+
+export type PeriodoPredefinido = 'hoy' | 'semana' | 'mes';
+
+// Devuelve el rango de un periodo "relativo a hoy", calculado por el
+// servidor. Es la versión del backend de rangoPreset (que ya existe en el
+// frontend): así el contador no depende de lo que el navegador crea que es
+// "hoy", y el servidor es siempre la fuente de verdad.
+//
+// Igual que arriba, usamos new Date(año, mes, día...) que construye la
+// fecha en hora LOCAL del servidor, no en UTC
+export function rangoPredefinido(periodo: PeriodoPredefinido): { inicio: Date; fin: Date } {
+  const ahora = new Date();
+  const anio = ahora.getFullYear();
+  const mes = ahora.getMonth();
+  const dia = ahora.getDate();
+
+  if (periodo === 'hoy') {
+    return {
+      inicio: new Date(anio, mes, dia, 0, 0, 0, 0),
+      fin: new Date(anio, mes, dia, 23, 59, 59, 999),
+    };
+  }
+
+  if (periodo === 'semana') {
+    // getDay() da 0 = domingo ... 6 = sábado. La semana empieza el lunes,
+    // así que calculamos cuántos días pasaron desde el lunes de esta semana
+    const diaSemana = ahora.getDay();
+    const diasDesdeLunes = diaSemana === 0 ? 6 : diaSemana - 1;
+    // new Date acepta días fuera de rango (negativos o mayores al mes) y
+    // los ajusta solo, cruzando de mes sin que tengamos que calcularlo
+    return {
+      inicio: new Date(anio, mes, dia - diasDesdeLunes, 0, 0, 0, 0),
+      fin: new Date(anio, mes, dia - diasDesdeLunes + 6, 23, 59, 59, 999),
+    };
+  }
+
+  // Mes actual: del día 1 al último día. new Date(año, mes + 1, 0) es el
+  // truco estándar para obtener el último día del mes
+  return {
+    inicio: new Date(anio, mes, 1, 0, 0, 0, 0),
+    fin: new Date(anio, mes + 1, 0, 23, 59, 59, 999),
+  };
+}

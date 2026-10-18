@@ -4,6 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
 import api from '../api'
+import { abrirPdf } from '../utils/descargarPdf'
+import { formatearFecha } from '../utils/formato'
 
 interface Cliente {
   id: number
@@ -205,9 +207,20 @@ function MembresiaPage() {
               ) : (
                 <ul className="text-sm text-slate-300 mb-2">
                   {membresia.pagos.map((pago) => (
-                    <li key={pago.id}>
-                      ${formatearPrecio(pago.monto)} — {pago.metodoPago} — {pago.fecha.substring(0, 10)}
-                      <span className="text-slate-500"> — atendido por {pago.registradoPor.nombre}</span>
+                    <li key={pago.id} className="flex items-center justify-between gap-3 py-1">
+                      <span>
+                        ${formatearPrecio(pago.monto)} — {pago.metodoPago} — {formatearFecha(pago.fecha)}
+                        <span className="text-slate-500"> — atendido por {pago.registradoPor.nombre}</span>
+                      </span>
+                      {/* El recibo solo lo genera el personal (el backend lo exige también) */}
+                      {puedeGestionar && (
+                        <button
+                          onClick={() => abrirPdf(`/pagos/${pago.id}/recibo`)}
+                          className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 text-xs whitespace-nowrap"
+                        >
+                          Recibo PDF
+                        </button>
+                      )}
                     </li>
                   ))}
                 </ul>

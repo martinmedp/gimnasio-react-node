@@ -35,20 +35,26 @@ router.get('/', verificarToken, verificarRol('Administrador', 'Recepcionista', '
   try {
     const clientes = await prisma.cliente.findMany({
       include: {
-        membresias: { where: { estado: 'activa' } },
+        // orderBy + take: 1 trae SOLO la membresía activa más reciente
+        // de cada cliente (la de fechaInicio más alta), no todas.
+        // Así, si hay una vieja vencida y una nueva vigente, ignoramos
+        // la vieja para efectos de la alerta
+        membresias: { where: { estado: 'activa' }, orderBy: { fechaInicio: 'desc' }, take: 1 },
         usuario: { select: { email: true, activo: true } },
       },
     });
 
     const clientesConAlerta = clientes.map((cliente) => {
-      const tieneAlerta = cliente.membresias.some((m) => calcularAlerta(m.fechaFin) !== null);
-      const alertaVencida = cliente.membresias.some((m) => calcularAlerta(m.fechaFin) === 'vencida');
+      // Como ahora traemos como máximo 1 membresía, tomamos esa (o
+      // undefined si no tiene ninguna activa) en vez de recorrer un arreglo
+      const membresiaReciente = cliente.membresias[0];
+      const alerta = membresiaReciente ? calcularAlerta(membresiaReciente.fechaFin) : null;
       const { membresias, ...clienteSinMembresias } = cliente;
 
       return {
         ...clienteSinMembresias,
-        alertaMembresia: tieneAlerta,
-        alertaMembresiaVencida: alertaVencida,
+        alertaMembresia: alerta !== null,
+        alertaMembresiaVencida: alerta === 'vencida',
       };
     });
 

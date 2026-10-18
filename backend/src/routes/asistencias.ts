@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import prisma from '../prisma';
 import { verificarToken, verificarRol, verificarPropioCliente } from '../middleware/auth';
-import { rangoDeFechas } from '../utils/fechas';
+import { rangoDeFechas, rangoPredefinido } from '../utils/fechas';
 
 const router = Router();
 
@@ -159,5 +159,69 @@ router.post('/', verificarToken, verificarRol('Administrador', 'Recepcionista'),
     res.status(500).json({ error: 'Error al registrar la asistencia' });
   }
 });
+
+// Calcula los cuatro contadores de entradas: hoy, esta semana, este mes y
+// total. Si llega clienteId, cuenta solo las de ese cliente; si no, las de
+// todo el gimnasio. Cada "entrada" es un registro de asistencia.
+async function calcularContador(clienteId?: number) {
+  // Condición base: vacía (todo el gimnasio) o limitada a un cliente
+  const base = clienteId !== undefined ? { clienteId } : {};
+
+  const hoy = rangoPredefinido('hoy');
+  const semana = rangoPredefinido('semana');
+  const mes = rangoPredefinido('mes');
+
+  // Promise.all lanza las cuatro consultas a la vez en vez de una tras
+  // otra, y espera a que terminen todas. count() le pide a MySQL solo el
+  // número, sin traer las filas: por eso el "total" es barato aunque haya
+  // miles de asistencias
+  const [totalHoy, totalSemana, totalMes, total] = await Promise.all([
+    prisma.asistencia.count({ where: { ...base, fecha: { gte: hoy.inicio, lte: hoy.fin } } }),
+    prisma.asistencia.count({ where: { ...base, fecha: { gte: semana.inicio, lte: semana.fin } } }),
+    prisma.asistencia.count({ where: { ...base, fecha: { gte: mes.inicio, lte: mes.fin } } }),
+    prisma.asistencia.count({ where: base }),
+  ]);
+
+  return { hoy: totalHoy, semana: totalSemana, mes: totalMes, total };
+}
+
+// GET /asistencias/contador — contadores de TODO el gimnasio, o de un
+// cliente si se manda ?clienteId=5. Administrador y Recepcionista
+router.get('/contador', verificarToken, verificarRol('Administrador', 'Recepcionista'), async (req, res) => {
+  try {
+    const { clienteId } = req.query;
+
+    let id: number | undefined = undefined;
+    if (typeof clienteId === 'string' && clienteId) {
+      id = Number(clienteId);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: 'clienteId inválido' });
+      }
+    }
+
+    res.json(await calcularContador(id));
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al calcular el contador de entradas' });
+  }
+});
+
+// GET /asistencias/cliente/:clienteId/contador — contadores de UN cliente.
+// Además del personal, el propio Cliente puede consultar el suyo
+// (verificarPropioCliente impide que vea el de otra persona)
+router.get(
+  '/cliente/:clienteId/contador',
+  verificarToken,
+  verificarRol('Administrador', 'Recepcionista', 'Cliente'),
+  verificarPropioCliente((req) => Number(req.params.clienteId)),
+  async (req, res) => {
+    try {
+      res.json(await calcularContador(Number(req.params.clienteId)));
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Error al calcular el contador de entradas' });
+    }
+  }
+);
 
 export default router;

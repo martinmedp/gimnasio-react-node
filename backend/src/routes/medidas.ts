@@ -18,8 +18,7 @@ function calcularImc(pesoKg: number | null, estaturaCm: number | null): number |
 }
 
 // GET /medidas/cliente/:clienteId — según la matriz, Recepcionista NO
-// gestiona medidas (no es su función); Administrador y Entrenador sí,
-// y un Cliente puede ver únicamente las suyas
+// gestiona medidas (no es su función); Administrador, Entrenador y Cliente
 router.get(
   '/cliente/:clienteId',
   verificarToken,
@@ -52,8 +51,8 @@ router.get(
   }
 );
 
-// POST /medidas — registrar una medición: Administrador y Entrenador
-router.post('/', verificarToken, verificarRol('Administrador', 'Entrenador'), async (req, res) => {
+// POST /medidas — registrar una medición: Administrador y Entrenador, cliente
+router.post('/', verificarToken, verificarRol('Administrador', 'Entrenador', 'Cliente'), async (req, res) => {
   try {
     const {
       clienteId,
