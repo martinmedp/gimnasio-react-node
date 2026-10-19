@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNotification } from '../context/NotificationContext'
 import api from '../api'
+import { useAuth } from '../context/AuthContext'
 
 interface Plan {
   id: number
@@ -24,6 +25,10 @@ const planVacio: PlanForm = { nombre: '', tipo: 'mensual', precio: '', duracionD
 
 function PlanesPage() {
   const { notificar, confirmar } = useNotification()
+  // Eliminar planes es exclusivo del Administrador (la Recepcionista
+  // puede crearlos y editarlos, igual que en el backend)
+  const { usuario } = useAuth()
+  const esAdministrador = usuario?.rol === 'Administrador'
 
   const [nuevoPlan, setNuevoPlan] = useState<PlanForm>(planVacio)
   const [planEditando, setPlanEditando] = useState<Plan | null>(null)
@@ -251,12 +256,14 @@ function PlanesPage() {
                   >
                     Editar
                   </button>
-                  <button
-                    onClick={() => handleEliminarPlan(plan.id)}
-                    className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"
-                  >
-                    Eliminar
-                  </button>
+                  {esAdministrador && (
+                    <button
+                      onClick={() => handleEliminarPlan(plan.id)}
+                      className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"
+                    >
+                      Eliminar
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
 import api from '../api'
 
@@ -50,8 +51,18 @@ function formatearPeso(peso: string | null): string {
 
 function RutinasPage() {
   const { id } = useParams<{ id: string }>()
+  const { usuario } = useAuth()
   const { notificar, confirmar } = useNotification()
   const queryClient = useQueryClient()
+
+  // Qué puede hacer cada rol (refleja la matriz de permisos del backend)
+  const rol = usuario?.rol
+  const esCliente = rol === 'Cliente'
+  const esAdministrador = rol === 'Administrador'
+  // Crear rutinas y armar sus ejercicios: Administrador y Entrenador.
+  // La Recepcionista y el Cliente solo consultan
+  const puedeGestionarRutinas = rol === 'Administrador' || rol === 'Entrenador'
+  // Eliminar una rutina completa es exclusivo del Administrador
 
   const [nombreRutina, setNombreRutina] = useState('')
   const [diaRutina, setDiaRutina] = useState('LUNES')
@@ -214,44 +225,53 @@ function RutinasPage() {
 
   return (
     <div>
-      <Link to="/clientes" className="text-slate-400 hover:text-white text-sm mb-4 inline-block">
-        ← Volver a clientes
-      </Link>
+      {/* "Volver a clientes" no aplica al Cliente: no tiene acceso a esa lista */}
+      {!esCliente && (
+        <Link to="/clientes" className="text-slate-400 hover:text-white text-sm mb-4 inline-block">
+          ← Volver a clientes
+        </Link>
+      )}
 
       <h1 className="text-3xl font-bold text-white mb-1">
-        Rutinas de {cliente ? cliente.nombre : 'Cargando...'}
+        {esCliente ? 'Mi rutina' : `Rutinas de ${cliente ? cliente.nombre : 'Cargando...'}`}
       </h1>
-      {cliente && <p className="text-slate-400 mb-6">Documento: {cliente.documento}</p>}
+      {cliente && !esCliente && <p className="text-slate-400 mb-6">Documento: {cliente.documento}</p>}
+      {esCliente && <div className="mb-6" />}
 
-      <form onSubmit={handleCrearRutina} className="flex gap-2 mb-8 bg-slate-800 p-4 rounded max-w-2xl">
-        <input
-          type="text"
-          placeholder="Nombre de la rutina (ej. Pecho y tríceps)"
-          value={nombreRutina}
-          onChange={(e) => setNombreRutina(e.target.value)}
-          className="p-2 rounded bg-slate-700 text-white flex-1"
-        />
-        <select
-          value={diaRutina}
-          onChange={(e) => setDiaRutina(e.target.value)}
-          className="p-2 rounded bg-slate-700 text-white"
-        >
-          {DIAS_SEMANA.map((dia) => (
-            <option key={dia} value={dia}>
-              {dia}
-            </option>
-          ))}
-        </select>
-        <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
-          Crear rutina
-        </button>
-      </form>
+      {/* Crear una rutina nueva: solo quien puede gestionar rutinas */}
+      {puedeGestionarRutinas && (
+        <form onSubmit={handleCrearRutina} className="flex gap-2 mb-8 bg-slate-800 p-4 rounded max-w-2xl">
+          <input
+            type="text"
+            placeholder="Nombre de la rutina (ej. Pecho y tríceps)"
+            value={nombreRutina}
+            onChange={(e) => setNombreRutina(e.target.value)}
+            className="p-2 rounded bg-slate-700 text-white flex-1"
+          />
+          <select
+            value={diaRutina}
+            onChange={(e) => setDiaRutina(e.target.value)}
+            className="p-2 rounded bg-slate-700 text-white"
+          >
+            {DIAS_SEMANA.map((dia) => (
+              <option key={dia} value={dia}>
+                {dia}
+              </option>
+            ))}
+          </select>
+          <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+            Crear rutina
+          </button>
+        </form>
+      )}
 
       {isLoading && <p className="text-white">Cargando rutinas...</p>}
       {isError && <p className="text-red-400">Error al cargar las rutinas</p>}
 
       {rutinas && rutinas.length === 0 && (
-        <p className="text-slate-400">Este cliente todavía no tiene rutinas asignadas.</p>
+        <p className="text-slate-400">
+          {esCliente ? 'Todavía no tienes rutinas asignadas.' : 'Este cliente todavía no tiene rutinas asignadas.'}
+        </p>
       )}
 
       <div className="flex flex-col gap-6">
@@ -264,20 +284,26 @@ function RutinasPage() {
                 </span>
                 <span className="text-white font-bold text-lg">{rutina.nombre}</span>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => abrirAgregarEjercicio(rutina.id)}
-                  className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm"
-                >
-                  + Ejercicio
-                </button>
-                <button
-                  onClick={() => handleEliminarRutina(rutina.id)}
-                  className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"
-                >
-                  Eliminar rutina
-                </button>
-              </div>
+              {/* Acciones de la rutina: el bloque solo existe para quien puede
+                  gestionar; dentro, "Eliminar rutina" es solo del Administrador */}
+              {puedeGestionarRutinas && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => abrirAgregarEjercicio(rutina.id)}
+                    className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 text-sm"
+                  >
+                    + Ejercicio
+                  </button>
+                  {esAdministrador && (
+                    <button
+                      onClick={() => handleEliminarRutina(rutina.id)}
+                      className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"
+                    >
+                      Eliminar rutina
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
 
             {rutinaAgregandoEjercicio === rutina.id && (
@@ -413,18 +439,23 @@ function RutinasPage() {
                         {item.series} series x {item.repeticiones} reps — {formatearPeso(item.peso)}
                       </p>
                     </div>
-                    <button
-                      onClick={() => abrirEdicionItem(item)}
-                      className="bg-yellow-600 text-white px-2 py-1 rounded hover:bg-yellow-700 text-xs"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleQuitarEjercicio(rutina.id, item.id)}
-                      className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 text-xs"
-                    >
-                      Quitar
-                    </button>
+                    {/* Editar y quitar ejercicios: solo quien gestiona rutinas */}
+                    {puedeGestionarRutinas && (
+                      <>
+                        <button
+                          onClick={() => abrirEdicionItem(item)}
+                          className="bg-yellow-600 text-white px-2 py-1 rounded hover:bg-yellow-700 text-xs"
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleQuitarEjercicio(rutina.id, item.id)}
+                          className="bg-red-600 text-white px-2 py-1 rounded hover:bg-red-700 text-xs"
+                        >
+                          Quitar
+                        </button>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>

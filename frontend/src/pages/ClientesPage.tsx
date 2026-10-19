@@ -47,7 +47,19 @@ const clienteVacio: NuevoClienteForm = {
 function ClientesPage() {
   const { usuario } = useAuth()
   const { notificar, confirmar } = useNotification()
-  const esAdministrador = usuario?.rol === 'Administrador'
+
+  // Qué puede hacer cada rol en esta pantalla. Estas banderas reflejan la
+  // matriz de permisos del backend: ocultar un botón evita mostrar acciones
+  // que fallarían, pero la protección real sigue estando en el servidor
+  const rol = usuario?.rol
+  const esAdministrador = rol === 'Administrador'
+  // Crear y editar clientes: Administrador y Recepcionista
+  const puedeGestionarClientes = rol === 'Administrador' || rol === 'Recepcionista'
+  // Medidas corporales: Administrador y Entrenador (la Recepcionista no)
+  const puedeVerMedidas = rol === 'Administrador' || rol === 'Entrenador'
+  // Membresía y pagos: Administrador y Recepcionista (el Entrenador no)
+  const puedeVerMembresia = rol === 'Administrador' || rol === 'Recepcionista'
+  // Rutinas las ven todos los roles de personal; Eliminar es solo del Administrador
 
   const [nuevoCliente, setNuevoCliente] = useState<NuevoClienteForm>(clienteVacio)
   const [clienteEditando, setClienteEditando] = useState<Cliente | null>(null)
@@ -98,8 +110,6 @@ function ClientesPage() {
     }
   }
 
-  // El handler ahora es "async" porque necesitamos "await" para esperar
-  // la respuesta del modal de confirmación antes de continuar
   const handleEliminarCliente = async (id: number) => {
     const confirmado = await confirmar('¿Seguro que quieres eliminar este cliente?', {
       variante: 'peligro',
@@ -204,53 +214,57 @@ function ClientesPage() {
     <div>
       <h1 className="text-3xl font-bold text-white mb-6">Clientes del gimnasio</h1>
 
-      <form onSubmit={handleCrearCliente} className="grid grid-cols-3 gap-2 mb-6 bg-slate-800 p-4 rounded max-w-3xl">
-        <input
-          type="text"
-          placeholder="Nombre"
-          value={nuevoCliente.nombre}
-          onChange={(e) => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value })}
-          className="p-2 rounded bg-slate-700 text-white"
-        />
-        <input
-          type="text"
-          placeholder="Documento"
-          value={nuevoCliente.documento}
-          onChange={(e) => setNuevoCliente({ ...nuevoCliente, documento: e.target.value })}
-          className="p-2 rounded bg-slate-700 text-white"
-        />
-        <input
-          type="text"
-          placeholder="Teléfono"
-          value={nuevoCliente.telefono}
-          onChange={(e) => setNuevoCliente({ ...nuevoCliente, telefono: e.target.value })}
-          className="p-2 rounded bg-slate-700 text-white"
-        />
-        <input
-          type="email"
-          placeholder="Email"
-          value={nuevoCliente.email}
-          onChange={(e) => setNuevoCliente({ ...nuevoCliente, email: e.target.value })}
-          className="p-2 rounded bg-slate-700 text-white"
-        />
-        <input
-          type="date"
-          value={nuevoCliente.fechaNacimiento}
-          onChange={(e) => setNuevoCliente({ ...nuevoCliente, fechaNacimiento: e.target.value })}
-          className="p-2 rounded bg-slate-700 text-white"
-        />
-        <input
-          type="number"
-          step="0.1"
-          placeholder="Estatura (cm)"
-          value={nuevoCliente.estatura}
-          onChange={(e) => setNuevoCliente({ ...nuevoCliente, estatura: e.target.value })}
-          className="p-2 rounded bg-slate-700 text-white"
-        />
-        <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 col-span-3">
-          Agregar cliente
-        </button>
-      </form>
+      {/* El formulario de alta solo lo ven quienes pueden crear clientes
+          (el Entrenador solo consulta) */}
+      {puedeGestionarClientes && (
+        <form onSubmit={handleCrearCliente} className="grid grid-cols-3 gap-2 mb-6 bg-slate-800 p-4 rounded max-w-3xl">
+          <input
+            type="text"
+            placeholder="Nombre"
+            value={nuevoCliente.nombre}
+            onChange={(e) => setNuevoCliente({ ...nuevoCliente, nombre: e.target.value })}
+            className="p-2 rounded bg-slate-700 text-white"
+          />
+          <input
+            type="text"
+            placeholder="Documento"
+            value={nuevoCliente.documento}
+            onChange={(e) => setNuevoCliente({ ...nuevoCliente, documento: e.target.value })}
+            className="p-2 rounded bg-slate-700 text-white"
+          />
+          <input
+            type="text"
+            placeholder="Teléfono"
+            value={nuevoCliente.telefono}
+            onChange={(e) => setNuevoCliente({ ...nuevoCliente, telefono: e.target.value })}
+            className="p-2 rounded bg-slate-700 text-white"
+          />
+          <input
+            type="email"
+            placeholder="Email"
+            value={nuevoCliente.email}
+            onChange={(e) => setNuevoCliente({ ...nuevoCliente, email: e.target.value })}
+            className="p-2 rounded bg-slate-700 text-white"
+          />
+          <input
+            type="date"
+            value={nuevoCliente.fechaNacimiento}
+            onChange={(e) => setNuevoCliente({ ...nuevoCliente, fechaNacimiento: e.target.value })}
+            className="p-2 rounded bg-slate-700 text-white"
+          />
+          <input
+            type="number"
+            step="0.1"
+            placeholder="Estatura (cm)"
+            value={nuevoCliente.estatura}
+            onChange={(e) => setNuevoCliente({ ...nuevoCliente, estatura: e.target.value })}
+            className="p-2 rounded bg-slate-700 text-white"
+          />
+          <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 col-span-3">
+            Agregar cliente
+          </button>
+        </form>
+      )}
 
       {clienteEditando && (
         <form onSubmit={handleActualizarCliente} className="grid grid-cols-3 gap-2 mb-6 bg-slate-800 p-4 rounded max-w-3xl">
@@ -401,6 +415,7 @@ function ClientesPage() {
             {clientes.map((cliente) => (
               <tr key={cliente.id} className="border-b border-slate-800">
                 <td className="py-2">
+                  {/* Cambiar la foto está permitido a todo el personal */}
                   <label htmlFor={`foto-${cliente.id}`} className="cursor-pointer block" title="Cambiar foto">
                     {cliente.fotoUrl ? (
                       <img
@@ -447,36 +462,46 @@ function ClientesPage() {
                   )}
                 </td>
                 <td className="py-2 flex gap-2">
-                  <button
-                    onClick={() => abrirEdicion(cliente)}
-                    className="bg-yellow-600 text-white px-3 py-1 rounded hover:bg-yellow-700 text-sm"
-                  >
-                    Editar
-                  </button>
-                  <Link
-                    to={`/clientes/${cliente.id}/medidas`}
-                    className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 text-sm"
-                  >
-                    Progreso
-                  </Link>
+                  {puedeGestionarClientes && (
+                    <button
+                      onClick={() => abrirEdicion(cliente)}
+                      className="bg-yellow-600 text-white px-3 py-1 rounded hover:bg-yellow-700 text-sm"
+                    >
+                      Editar
+                    </button>
+                  )}
+                  {puedeVerMedidas && (
+                    <Link
+                      to={`/clientes/${cliente.id}/medidas`}
+                      className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 text-sm"
+                    >
+                      Progreso
+                    </Link>
+                  )}
+                  {/* Rutinas: la ven todos los roles de personal */}
                   <Link
                     to={`/clientes/${cliente.id}/rutinas`}
                     className="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 text-sm"
                   >
                     Rutinas
                   </Link>
-                  <Link
-                    to={`/clientes/${cliente.id}/membresia`}
-                    className="bg-teal-600 text-white px-3 py-1 rounded hover:bg-teal-700 text-sm"
-                  >
-                    Membresía
-                  </Link>
-                  <button
-                    onClick={() => handleEliminarCliente(cliente.id)}
-                    className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"
-                  >
-                    Eliminar
-                  </button>
+                  {puedeVerMembresia && (
+                    <Link
+                      to={`/clientes/${cliente.id}/membresia`}
+                      className="bg-teal-600 text-white px-3 py-1 rounded hover:bg-teal-700 text-sm"
+                    >
+                      Membresía
+                    </Link>
+                  )}
+                  {/* Eliminar un cliente es exclusivo del Administrador */}
+                  {esAdministrador && (
+                    <button
+                      onClick={() => handleEliminarCliente(cliente.id)}
+                      className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"
+                    >
+                      Eliminar
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

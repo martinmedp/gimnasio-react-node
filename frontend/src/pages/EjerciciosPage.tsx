@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
 import api from '../api'
 
@@ -18,7 +19,15 @@ interface Ejercicio {
 }
 
 function EjerciciosPage() {
+  const { usuario } = useAuth()
   const { notificar, confirmar } = useNotification()
+
+  // Qué puede hacer cada rol (refleja la matriz de permisos del backend):
+  // todos pueden ver el catálogo; crear y editar ejercicios es del
+  // Administrador y el Entrenador; eliminar es solo del Administrador
+  const rol = usuario?.rol
+  const esAdministrador = rol === 'Administrador'
+  const puedeGestionarEjercicios = rol === 'Administrador' || rol === 'Entrenador'
 
   const [nombre, setNombre] = useState('')
   const [descripcion, setDescripcion] = useState('')
@@ -115,8 +124,6 @@ function EjerciciosPage() {
     }
   }
 
-  // El handler ahora es async: "await confirmar(...)" espera a que el
-  // usuario responda en el modal personalizado antes de continuar
   const handleEliminarEjercicio = async (id: number) => {
     const confirmado = await confirmar('¿Eliminar este ejercicio?', {
       variante: 'peligro',
@@ -137,47 +144,50 @@ function EjerciciosPage() {
     <div>
       <h1 className="text-3xl font-bold text-white mb-6">Catálogo de ejercicios</h1>
 
-      <form onSubmit={handleCrearEjercicio} className="grid grid-cols-2 gap-2 mb-6 bg-slate-800 p-4 rounded max-w-2xl">
-        <input
-          type="text"
-          placeholder="Nombre del ejercicio"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          className="p-2 rounded bg-slate-700 text-white"
-        />
+      {/* El formulario de alta solo lo ven quienes pueden crear ejercicios */}
+      {puedeGestionarEjercicios && (
+        <form onSubmit={handleCrearEjercicio} className="grid grid-cols-2 gap-2 mb-6 bg-slate-800 p-4 rounded max-w-2xl">
+          <input
+            type="text"
+            placeholder="Nombre del ejercicio"
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            className="p-2 rounded bg-slate-700 text-white"
+          />
 
-        <select
-          value={seccionCuerpoId}
-          onChange={(e) => setSeccionCuerpoId(e.target.value)}
-          className="p-2 rounded bg-slate-700 text-white"
-        >
-          <option value="">Selecciona sección del cuerpo</option>
-          {secciones?.map((seccion) => (
-            <option key={seccion.id} value={seccion.id}>
-              {seccion.nombre}
-            </option>
-          ))}
-        </select>
+          <select
+            value={seccionCuerpoId}
+            onChange={(e) => setSeccionCuerpoId(e.target.value)}
+            className="p-2 rounded bg-slate-700 text-white"
+          >
+            <option value="">Selecciona sección del cuerpo</option>
+            {secciones?.map((seccion) => (
+              <option key={seccion.id} value={seccion.id}>
+                {seccion.nombre}
+              </option>
+            ))}
+          </select>
 
-        <textarea
-          placeholder="Descripción (opcional)"
-          value={descripcion}
-          onChange={(e) => setDescripcion(e.target.value)}
-          className="p-2 rounded bg-slate-700 text-white col-span-2"
-          rows={2}
-        />
+          <textarea
+            placeholder="Descripción (opcional)"
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            className="p-2 rounded bg-slate-700 text-white col-span-2"
+            rows={2}
+          />
 
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => setImagen(e.target.files ? e.target.files[0] : null)}
-          className="p-2 rounded bg-slate-700 text-white col-span-2"
-        />
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => setImagen(e.target.files ? e.target.files[0] : null)}
+            className="p-2 rounded bg-slate-700 text-white col-span-2"
+          />
 
-        <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 col-span-2">
-          Agregar ejercicio
-        </button>
-      </form>
+          <button type="submit" className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 col-span-2">
+            Agregar ejercicio
+          </button>
+        </form>
+      )}
 
       <div className="mb-4 flex items-center gap-2">
         <label className="text-white text-sm">Filtrar por sección:</label>
@@ -223,20 +233,26 @@ function EjerciciosPage() {
               {ejercicio.descripcion && (
                 <p className="text-slate-300 text-sm mt-1">{ejercicio.descripcion}</p>
               )}
-              <div className="flex gap-2 mt-2">
-                <button
-                  onClick={() => abrirEdicion(ejercicio)}
-                  className="bg-yellow-600 text-white px-3 py-1 rounded hover:bg-yellow-700 text-sm"
-                >
-                  Editar
-                </button>
-                <button
-                  onClick={() => handleEliminarEjercicio(ejercicio.id)}
-                  className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"
-                >
-                  Eliminar
-                </button>
-              </div>
+              {/* Editar: Administrador y Entrenador. Eliminar: solo Administrador.
+                  Quien solo consulta (Recepcionista, Cliente) no ve botones */}
+              {puedeGestionarEjercicios && (
+                <div className="flex gap-2 mt-2">
+                  <button
+                    onClick={() => abrirEdicion(ejercicio)}
+                    className="bg-yellow-600 text-white px-3 py-1 rounded hover:bg-yellow-700 text-sm"
+                  >
+                    Editar
+                  </button>
+                  {esAdministrador && (
+                    <button
+                      onClick={() => handleEliminarEjercicio(ejercicio.id)}
+                      className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"
+                    >
+                      Eliminar
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
