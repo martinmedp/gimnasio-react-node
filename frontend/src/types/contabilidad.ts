@@ -28,6 +28,12 @@ export interface PagoRegistro {
     cliente: { nombre: string; documento: string }
     plan: { nombre: string }
   }
+  // Anulación: el pago no se borra, queda marcado. "anuladoPor" es
+  // opcional porque no todos los endpoints incluyen el nombre
+  anulado: boolean
+  anuladoEn: string | null
+  motivoAnulacion: string | null
+  anuladoPor?: { nombre: string } | null
 }
 
 // Forma de la respuesta de GET /pagos
@@ -36,7 +42,7 @@ export interface PagosConResumen {
   resumen: Resumen
 }
 
-// Nuevo: un gasto tal como lo devuelve el backend. Es el espejo de
+// Un gasto tal como lo devuelve el backend. Es el espejo de
 // PagoRegistro, con categoría y descripción en lugar de cliente y plan
 export interface GastoRegistro {
   id: number
@@ -49,7 +55,7 @@ export interface GastoRegistro {
   registradoPor: { nombre: string }
 }
 
-// Nuevo: el resumen de la previsualización de un cierre. Extiende el
+// El resumen de la previsualización de un cierre. Extiende el
 // Resumen de ingresos con los campos que el backend agrega al cruzar gastos
 export interface ResumenCierre extends Resumen {
   totalGastos: string
@@ -58,7 +64,7 @@ export interface ResumenCierre extends Resumen {
   efectivoEsperado: string
 }
 
-// Nuevo: la respuesta completa de GET /cierres/previsualizar
+// La respuesta completa de GET /cierres/previsualizar
 export interface PrevisualizacionCierre {
   pagos: PagoRegistro[]
   gastos: GastoRegistro[]

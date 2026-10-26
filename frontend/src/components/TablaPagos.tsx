@@ -3,7 +3,7 @@ import { formatearDinero, formatearFechaHora } from '../utils/formato'
 
 interface TablaPagosProps {
   pagos: PagoRegistro[]
-  // Muestra la columna que indica si el pago ya fue cerrado o sigue pendiente
+  // Muestra la columna de estado: anulado, ya cerrado o pendiente
   mostrarCierre?: boolean
 }
 
@@ -27,12 +27,14 @@ function TablaPagos({ pagos, mostrarCierre = false }: TablaPagosProps) {
             <th className="py-2 pr-4">Método</th>
             <th className="py-2 pr-4 text-right">Monto</th>
             <th className="py-2 pr-4">Registrado por</th>
-            {mostrarCierre && <th className="py-2">Cierre</th>}
+            {mostrarCierre && <th className="py-2">Estado</th>}
           </tr>
         </thead>
         <tbody>
           {pagos.map((pago) => (
-            <tr key={pago.id} className="border-b border-slate-800">
+            // Un pago anulado se ve atenuado y con el monto tachado: sigue
+            // en la lista como rastro, pero se nota que no cuenta
+            <tr key={pago.id} className={`border-b border-slate-800 align-top ${pago.anulado ? 'opacity-60' : ''}`}>
               <td className="py-2 pr-4 whitespace-nowrap">{formatearFechaHora(pago.fecha)}</td>
               <td className="py-2 pr-4">
                 {pago.membresia.cliente.nombre}
@@ -40,11 +42,22 @@ function TablaPagos({ pagos, mostrarCierre = false }: TablaPagosProps) {
               </td>
               <td className="py-2 pr-4">{pago.membresia.plan.nombre}</td>
               <td className="py-2 pr-4 capitalize">{pago.metodoPago}</td>
-              <td className="py-2 pr-4 text-right whitespace-nowrap">{formatearDinero(pago.monto)}</td>
+              <td className={`py-2 pr-4 text-right whitespace-nowrap ${pago.anulado ? 'line-through' : ''}`}>
+                {formatearDinero(pago.monto)}
+              </td>
               <td className="py-2 pr-4">{pago.registradoPor.nombre}</td>
               {mostrarCierre && (
                 <td className="py-2">
-                  {pago.cierreCajaId ? (
+                  {pago.anulado ? (
+                    <>
+                      <span className="bg-red-700 text-xs px-2 py-1 rounded">Anulado</span>
+                      {pago.motivoAnulacion && (
+                        <span className="block text-red-300 text-xs mt-1 max-w-[12rem] break-words">
+                          {pago.motivoAnulacion}
+                        </span>
+                      )}
+                    </>
+                  ) : pago.cierreCajaId ? (
                     <span className="bg-green-700 text-xs px-2 py-1 rounded whitespace-nowrap">
                       Cierre #{pago.cierreCajaId}
                     </span>

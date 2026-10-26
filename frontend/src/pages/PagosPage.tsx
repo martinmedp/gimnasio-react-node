@@ -2,23 +2,24 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import api from '../api'
+import { abrirPdf } from '../utils/descargarPdf'
 import TarjetaDato from '../components/TarjetaDato'
 import TablaPagos, { ChipsMetodo } from '../components/TablaPagos'
 import { formatearDinero, rangoPreset } from '../utils/formato'
 import type { PagosConResumen } from '../types/contabilidad'
-import { abrirPdf } from '../utils/descargarPdf'
 
 function PagosPage() {
   const { usuario } = useAuth()
   const puedeVer = usuario?.rol === 'Administrador' || usuario?.rol === 'Recepcionista'
 
   // Por defecto mostramos el mes actual, para no traer todo el historial
-  // de pagos (que crece con el tiempo). La función dentro de useState solo
-  // se ejecuta la primera vez que se muestra la pantalla
+  // de pagos (que crece con el tiempo)
   const [desde, setDesde] = useState(() => rangoPreset('mes').desde)
   const [hasta, setHasta] = useState(() => rangoPreset('mes').hasta)
   const [metodoPago, setMetodoPago] = useState('')
   const [estadoCierre, setEstadoCierre] = useState('')
+  // Nuevo: ver todos, solo los válidos o solo los anulados
+  const [estadoPago, setEstadoPago] = useState('')
 
   const rangoCompleto = desde !== '' && hasta !== ''
   // Solo una de las dos fechas llena: el backend exige ambas juntas
@@ -32,6 +33,7 @@ function PagosPage() {
   }
   if (metodoPago) params.metodoPago = metodoPago
   if (estadoCierre) params.estadoCierre = estadoCierre
+  if (estadoPago) params.estadoPago = estadoPago
 
   // Los filtros van dentro de la queryKey: cada vez que cambian, TanStack
   // Query entiende que es otra consulta y vuelve a pedir los datos solo
@@ -54,6 +56,10 @@ function PagosPage() {
     setDesde('')
     setHasta('')
   }
+
+  // Cuántos pagos anulados hay en la selección actual: la lista los
+  // incluye, pero los totales no
+  const cantidadAnulados = data ? data.pagos.filter((pago) => pago.anulado).length : 0
 
   // Todos los hooks ya se llamaron arriba; este return anticipado es seguro
   if (!puedeVer) {
@@ -130,7 +136,7 @@ function PagosPage() {
             </select>
           </div>
           <div>
-            <label className="text-slate-400 text-sm block mb-1">Estado</label>
+            <label className="text-slate-400 text-sm block mb-1">Estado de cierre</label>
             <select
               value={estadoCierre}
               onChange={(e) => setEstadoCierre(e.target.value)}
@@ -139,6 +145,18 @@ function PagosPage() {
               <option value="">Todos</option>
               <option value="pendiente">Pendientes de cierre</option>
               <option value="cerrado">Ya cerrados</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-slate-400 text-sm block mb-1">Estado del pago</label>
+            <select
+              value={estadoPago}
+              onChange={(e) => setEstadoPago(e.target.value)}
+              className="p-2 rounded bg-slate-700 text-white"
+            >
+              <option value="">Todos</option>
+              <option value="valido">Solo válidos</option>
+              <option value="anulado">Solo anulados</option>
             </select>
           </div>
         </div>
@@ -159,26 +177,33 @@ function PagosPage() {
 
       {data && (
         <>
-          {/* Totales de la selección actual (respetan los filtros aplicados) */}
+          {/* Totales de la selección actual (respetan los filtros aplicados
+              y NO incluyen los pagos anulados) */}
           <div className="grid grid-cols-3 gap-3 mb-3 max-w-2xl">
             <TarjetaDato titulo="Total general" valor={formatearDinero(data.resumen.totalGeneral)} />
             <TarjetaDato titulo="Total en efectivo" valor={formatearDinero(data.resumen.totalEfectivo)} />
             <TarjetaDato titulo="Cantidad de pagos" valor={String(data.resumen.cantidad)} />
           </div>
-          <div className="mb-6">
+          <div className="mb-3">
             <ChipsMetodo porMetodo={data.resumen.porMetodo} />
           </div>
 
-          <TablaPagos pagos={data.pagos} mostrarCierre />
+          {cantidadAnulados > 0 && (
+            <p className="text-red-300 text-sm mb-4">
+              Esta selección incluye {cantidadAnulados} pago(s) anulado(s). Aparecen en la lista, pero no suman en los
+              totales.
+            </p>
+          )}
+
           <button
             onClick={() => abrirPdf('/pagos/reporte/pdf', params)}
             className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 mb-4"
           >
             Descargar reporte PDF
           </button>
+
+          <TablaPagos pagos={data.pagos} mostrarCierre />
         </>
-
-
       )}
     </div>
   )

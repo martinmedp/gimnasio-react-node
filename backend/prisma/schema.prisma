@@ -14,19 +14,22 @@ model Rol {
 }
 
 model Usuario {
-  id                Int          @id @default(autoincrement())
-  nombre            String
-  email             String       @unique
-  password          String
-  rolId             Int
-  rol               Rol          @relation(fields: [rolId], references: [id])
-  clienteId         Int?         @unique
-  cliente           Cliente?     @relation(fields: [clienteId], references: [id])
-  activo            Boolean      @default(true)
-  pagosRegistrados  Pago[]
-  gastosRegistrados Gasto[] // nuevo: relación inversa hacia los gastos que este usuario registró
-  cierresRealizados CierreCaja[] @relation("CierreCerradoPor")
-  cierresRevertidos CierreCaja[] @relation("CierreRevertidoPor")
+  id                     Int          @id @default(autoincrement())
+  nombre                 String
+  email                  String       @unique
+  password               String
+  rolId                  Int
+  rol                    Rol          @relation(fields: [rolId], references: [id])
+  clienteId              Int?         @unique
+  cliente                Cliente?     @relation(fields: [clienteId], references: [id])
+  activo                 Boolean      @default(true)
+  pagosRegistrados       Pago[]       @relation("PagoRegistradoPor")
+  pagosAnulados          Pago[]       @relation("PagoAnuladoPor") // pagos que este usuario anuló
+  gastosRegistrados      Gasto[] // nuevo: relación inversa hacia los gastos que este usuario registró
+  cierresRealizados      CierreCaja[] @relation("CierreCerradoPor")
+  cierresRevertidos      CierreCaja[] @relation("CierreRevertidoPor")
+  asistenciasAutorizadas Asistencia[] @relation("AsistenciaAutorizadaPor") // entradas forzadas que este usuario autorizó
+  pagos                  Pago[]
 }
 
 model Cliente {
@@ -77,10 +80,25 @@ model Pago {
   fecha           DateTime    @default(now())
   metodoPago      String
   registradoPorId Int
-  registradoPor   Usuario     @relation(fields: [registradoPorId], references: [id])
+  // Ahora hay DOS relaciones entre Pago y Usuario (quién registró y quién
+  // anuló), así que cada una necesita un nombre para que Prisma sepa a
+  // cuál columna corresponde cada lado. Poner nombre a la existente no
+  // cambia nada en la base de datos
+  registradoPor   Usuario     @relation("PagoRegistradoPor", fields: [registradoPorId], references: [id])
   membresia       Membresia   @relation(fields: [membresiaId], references: [id])
   cierreCajaId    Int?
   cierreCaja      CierreCaja? @relation(fields: [cierreCajaId], references: [id])
+
+  // Anulación: el pago NO se borra, queda marcado. Los pagos anulados no
+  // cuentan en totales, cierres ni reportes, pero siguen existiendo como
+  // rastro de auditoría (quién, cuándo y por qué)
+  anulado         Boolean   @default(false)
+  anuladoEn       DateTime?
+  anuladoPorId    Int?
+  anuladoPor      Usuario?  @relation("PagoAnuladoPor", fields: [anuladoPorId], references: [id])
+  motivoAnulacion String?   @db.Text
+  usuario         Usuario?  @relation(fields: [usuarioId], references: [id])
+  usuarioId       Int?
 }
 
 // Nuevo: catálogo de categorías de gasto, gestionable desde la app
@@ -140,6 +158,17 @@ model Asistencia {
   clienteId Int
   fecha     DateTime @default(now())
   cliente   Cliente  @relation(fields: [clienteId], references: [id])
+
+  // Entradas "forzadas": registradas aunque el sistema advirtió un problema
+  // (membresía vencida, sin entradas, sin membresía o doble registro del
+  // día) y el personal decidió confirmar igual. Quedan marcadas para poder
+  // revisarlas después.
+  forzada         Boolean  @default(false)
+  // Qué advertencia se ignoró, por ejemplo "VENCIDA" o "YA_REGISTRO_HOY"
+  motivoForzada   String?
+  // Quién del personal autorizó la entrada
+  autorizadaPorId Int?
+  autorizadaPor   Usuario? @relation("AsistenciaAutorizadaPor", fields: [autorizadaPorId], references: [id])
 }
 
 model MedidaCorporal {

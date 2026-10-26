@@ -17,14 +17,47 @@ interface Asistencia {
   id: number
   fecha: string
   cliente: Cliente
+  // Datos de las entradas "forzadas" (registradas pese a una advertencia)
+  forzada: boolean
+  motivoForzada: string | null
+  autorizadaPor: { nombre: string } | null
 }
 
-// Forma de la respuesta de GET /asistencias/contador
 interface Contador {
   hoy: number
   semana: number
   mes: number
   total: number
+}
+
+// Una advertencia que devuelve el backend cuando una entrada necesita
+// confirmación (membresía vencida, doble registro, etc.)
+interface Advertencia {
+  codigo: string
+  mensaje: string
+}
+
+// Entrada que está esperando la decisión del personal en el aviso
+interface PendienteConfirmar {
+  cliente: Cliente
+  advertencias: Advertencia[]
+}
+
+// Cómo se muestra cada código de motivo en el historial
+const ETIQUETA_MOTIVO: Record<string, string> = {
+  SIN_MEMBRESIA: 'sin membresía',
+  VENCIDA: 'membresía vencida',
+  SIN_ENTRADAS: 'sin entradas',
+  YA_REGISTRO_HOY: 'ya había entrado hoy',
+}
+
+// motivoForzada llega como "VENCIDA,YA_REGISTRO_HOY": lo pasamos a texto legible
+function describirMotivo(motivo: string | null): string {
+  if (!motivo) return ''
+  return motivo
+    .split(',')
+    .map((codigo) => ETIQUETA_MOTIVO[codigo] ?? codigo)
+    .join(', ')
 }
 
 function AsistenciaPage() {
@@ -36,9 +69,13 @@ function AsistenciaPage() {
   const [descontarTiquetera, setDescontarTiquetera] = useState(true)
   const [escanerPausado, setEscanerPausado] = useState(false)
 
+  // Si no es null, se muestra el aviso de confirmación
+  const [pendienteConfirmar, setPendienteConfirmar] = useState<PendienteConfirmar | null>(null)
+
   const [filtroDesde, setFiltroDesde] = useState('')
   const [filtroHasta, setFiltroHasta] = useState('')
   const [filtroClienteId, setFiltroClienteId] = useState('')
+  const [soloForzadas, setSoloForzadas] = useState(false)
 
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const escaneando = useRef(false)
@@ -77,10 +114,6 @@ function AsistenciaPage() {
     },
   })
 
-  // Contadores de entradas (hoy, semana, mes y total). Dependen SOLO del
-  // cliente seleccionado: sus periodos son fijos y los calcula el servidor,
-  // por eso no usan las fechas del filtro. El id del cliente va en la
-  // queryKey para que al cambiar de cliente se vuelvan a pedir los números
   const { data: contador } = useQuery<Contador>({
     queryKey: ['asistencias-contador', filtroClienteId],
     queryFn: async () => {
@@ -91,9 +124,58 @@ function AsistenciaPage() {
     },
   })
 
-  // El cliente seleccionado en el filtro (si hay uno), para mostrar su
-  // nombre en el título de los contadores
   const clienteFiltrado = clientes?.find((c) => String(c.id) === filtroClienteId)
+
+  // "Solo forzadas" se filtra aquí, sobre lo que ya llegó del servidor
+  const historialMostrado = soloForzadas ? historial?.filter((a) => a.forzada) : historial
+
+  // Arma el mensaje de éxito con el estado de la membresía, para que el
+  // mostrador lo vea sin abrir la ficha: entradas que quedan y, si está
+  // por vencer, cuántos días faltan
+  const armarMensajeExito = (cliente: Cliente, datos: any): string => {
+    const { forzada, membresia } = datos
+    let texto = `${forzada ? 'Entrada FORZADA registrada' : 'Entrada registrada'}: ${cliente.nombre}`
+
+    if (membresia?.tipo === 'tiquetera' && membresia.entradasRestantes !== null) {
+      texto += ` — quedan ${membresia.entradasRestantes} entradas`
+    }
+
+    // Si la entrada se forzó, la membresía ya estaba vencida o sin entradas:
+    // avisar "vence en N días" no tendría sentido
+    const dias = membresia?.diasParaVencer
+    if (!forzada && typeof dias === 'number' && dias >= 0 && dias <= 5) {
+      texto += dias === 0 ? ' — la membresía vence hoy' : ` — la membresía vence en ${dias} día(s)`
+    }
+
+    return texto
+  }
+
+  // Envía la entrada al backend. Con confirmar = false, si hay advertencias
+  // el backend responde 409 y abrimos el aviso; con confirmar = true se
+  // registra aunque las haya (marcada como forzada)
+  const enviarEntrada = async (cliente: Cliente, confirmar: boolean) => {
+    try {
+      const response = await api.post('/asistencias', {
+        clienteId: cliente.id,
+        descontarTiquetera,
+        confirmar,
+      })
+
+      notificar(armarMensajeExito(cliente, response.data), response.data.forzada ? 'info' : 'exito')
+
+      queryClient.invalidateQueries({ queryKey: ['asistencias-hoy'] })
+      queryClient.invalidateQueries({ queryKey: ['asistencias-historial'] })
+      queryClient.invalidateQueries({ queryKey: ['asistencias-contador'] })
+    } catch (err: any) {
+      // Un 409 con requiereConfirmacion no es un error: es el backend
+      // pidiendo una decisión. Mostramos el aviso en vez de un mensaje rojo
+      if (err.response?.status === 409 && err.response.data?.requiereConfirmacion) {
+        setPendienteConfirmar({ cliente, advertencias: err.response.data.advertencias })
+        return
+      }
+      notificar(err.response?.data?.error || 'Error al registrar la asistencia', 'error')
+    }
+  }
 
   const registrarPorDocumento = async (documento: string) => {
     const cliente = clientes?.find((c) => c.documento === documento.trim())
@@ -103,26 +185,16 @@ function AsistenciaPage() {
       return
     }
 
-    try {
-      const response = await api.post('/asistencias', {
-        clienteId: cliente.id,
-        descontarTiquetera,
-      })
+    await enviarEntrada(cliente, false)
+  }
 
-      const { descontoTiquetera, entradasRestantes } = response.data
-      let texto = `Entrada registrada: ${cliente.nombre}`
-      if (descontoTiquetera) {
-        texto += ` (tiquetera: quedan ${entradasRestantes} entradas)`
-      }
-      notificar(texto, 'exito')
-
-      queryClient.invalidateQueries({ queryKey: ['asistencias-hoy'] })
-      queryClient.invalidateQueries({ queryKey: ['asistencias-historial'] })
-      // Los contadores también cambian con cada entrada nueva
-      queryClient.invalidateQueries({ queryKey: ['asistencias-contador'] })
-    } catch (err) {
-      notificar('Error al registrar la asistencia', 'error')
-    }
+  // El personal decidió registrar la entrada pese a las advertencias
+  const handleConfirmarForzada = async () => {
+    if (!pendienteConfirmar) return
+    const { cliente } = pendienteConfirmar
+    // Cerramos el aviso antes de enviar, para evitar un doble clic
+    setPendienteConfirmar(null)
+    await enviarEntrada(cliente, true)
   }
 
   const handleBuscarManual = (e: React.FormEvent) => {
@@ -202,7 +274,12 @@ function AsistenciaPage() {
     setFiltroDesde('')
     setFiltroHasta('')
     setFiltroClienteId('')
+    setSoloForzadas(false)
   }
+
+  // ¿Entre las advertencias está el doble registro? Si es así, avisamos
+  // que no se descontará otra entrada de la tiquetera
+  const hayDobleRegistro = pendienteConfirmar?.advertencias.some((a) => a.codigo === 'YA_REGISTRO_HOY')
 
   return (
     <div>
@@ -288,7 +365,14 @@ function AsistenciaPage() {
               </div>
             )}
             <div className="flex-1">
-              <p className="text-white text-sm font-bold">{asistencia.cliente.nombre}</p>
+              <p className="text-white text-sm font-bold">
+                {asistencia.cliente.nombre}
+                {asistencia.forzada && (
+                  <span className="ml-2 bg-orange-600 text-white text-xs font-normal px-2 py-0.5 rounded">
+                    Forzada
+                  </span>
+                )}
+              </p>
               <p className="text-slate-400 text-xs">
                 {new Date(asistencia.fecha).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}
               </p>
@@ -366,6 +450,10 @@ function AsistenciaPage() {
               ))}
             </select>
           </div>
+          <label className="flex items-center gap-2 text-white text-sm pb-2">
+            <input type="checkbox" checked={soloForzadas} onChange={(e) => setSoloForzadas(e.target.checked)} />
+            Solo entradas forzadas
+          </label>
         </div>
 
         {rangoIncompleto && (
@@ -375,9 +463,6 @@ function AsistenciaPage() {
         )}
       </div>
 
-      {/* Contador de entradas: periodos fijos calculados por el servidor.
-          Solo cambia con el filtro de Cliente; las fechas de arriba afectan
-          a la tabla de abajo, no a estas tarjetas */}
       <div className="mb-6">
         <h3 className="text-white font-bold text-sm mb-1">
           Contador de entradas — {clienteFiltrado ? clienteFiltrado.nombre : 'todo el gimnasio'}
@@ -396,31 +481,91 @@ function AsistenciaPage() {
       {cargandoHistorial && <p className="text-white">Cargando historial...</p>}
       {errorHistorial && <p className="text-red-400">Error al cargar el historial (revisa el rango de fechas)</p>}
 
-      {historial && historial.length === 0 && (
+      {historialMostrado && historialMostrado.length === 0 && (
         <p className="text-slate-400">No hay asistencias para estos filtros.</p>
       )}
 
-      {historial && historial.length > 0 && (
+      {historialMostrado && historialMostrado.length > 0 && (
         <div className="overflow-x-auto">
           <table className="w-full text-left text-white text-sm">
             <thead>
               <tr className="border-b border-slate-700">
                 <th className="py-2 pr-4">Fecha y hora</th>
                 <th className="py-2 pr-4">Cliente</th>
-                <th className="py-2">Documento</th>
+                <th className="py-2 pr-4">Documento</th>
+                <th className="py-2">Observación</th>
               </tr>
             </thead>
             <tbody>
-              {historial.map((asistencia) => (
-                <tr key={asistencia.id} className="border-b border-slate-800">
+              {historialMostrado.map((asistencia) => (
+                <tr key={asistencia.id} className="border-b border-slate-800 align-top">
                   <td className="py-2 pr-4 whitespace-nowrap">{formatearFechaHora(asistencia.fecha)}</td>
                   <td className="py-2 pr-4">{asistencia.cliente.nombre}</td>
-                  <td className="py-2">{asistencia.cliente.documento}</td>
+                  <td className="py-2 pr-4">{asistencia.cliente.documento}</td>
+                  <td className="py-2">
+                    {asistencia.forzada ? (
+                      <>
+                        <span className="bg-orange-600 text-white text-xs px-2 py-0.5 rounded">Forzada</span>
+                        <span className="block text-slate-400 text-xs mt-1">
+                          {describirMotivo(asistencia.motivoForzada)}
+                          {asistencia.autorizadaPor ? ` — autorizó ${asistencia.autorizadaPor.nombre}` : ''}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-slate-600">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="text-slate-400 text-sm mt-2">Entradas en esta selección: {historial.length}</p>
+          <p className="text-slate-400 text-sm mt-2">Entradas en esta selección: {historialMostrado.length}</p>
+        </div>
+      )}
+
+      {/* Aviso de confirmación: aparece cuando el backend detecta algo
+          raro con la entrada. No se cierra al hacer clic fuera, para que
+          nadie lo descarte por accidente: hay que elegir una opción */}
+      {pendienteConfirmar && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
+          <div className="bg-slate-800 rounded p-6 w-full max-w-md">
+            <h2 className="text-white font-bold text-lg mb-1">Confirmar entrada</h2>
+            <p className="text-slate-300 text-sm mb-3">
+              {pendienteConfirmar.cliente.nombre} ({pendienteConfirmar.cliente.documento})
+            </p>
+
+            <ul className="mb-3 space-y-1">
+              {pendienteConfirmar.advertencias.map((advertencia) => (
+                <li key={advertencia.codigo} className="text-yellow-300 text-sm">
+                  • {advertencia.mensaje}
+                </li>
+              ))}
+            </ul>
+
+            {hayDobleRegistro && (
+              <p className="text-slate-400 text-xs mb-3">
+                Al ser un segundo registro del día, no se descontará otra entrada de la tiquetera.
+              </p>
+            )}
+            <p className="text-slate-400 text-xs mb-4">
+              Si continúas, la entrada quedará marcada como forzada y registrada a tu nombre.
+            </p>
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setPendienteConfirmar(null)}
+                className="bg-slate-600 text-white px-4 py-2 rounded hover:bg-slate-700"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmarForzada}
+                className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700"
+              >
+                Registrar de todos modos
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

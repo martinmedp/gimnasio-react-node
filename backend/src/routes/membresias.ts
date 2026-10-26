@@ -123,6 +123,29 @@ router.put('/:id/estado', verificarToken, verificarRol('Administrador', 'Recepci
   }
 });
 
+// Guardia: una membresía solo puede tener UN pago válido (no anulado).
+// Hasta ahora solo lo impedía la pantalla (ocultaba el botón); aquí lo
+// exige el backend. Si el pago fue un error, hay que anularlo primero
+router.post('/:id/pagos', verificarToken, verificarRol('Administrador', 'Recepcionista'), async (req, res, next) => {
+  try {
+    const pagoValido = await prisma.pago.findFirst({
+      where: { membresiaId: Number(req.params.id), anulado: false },
+    });
+
+    if (pagoValido) {
+      return res.status(409).json({
+        error: 'Esta membresía ya tiene un pago registrado. Si hubo un error, anúlalo primero',
+      });
+    }
+
+    // Sin pago válido: next() pasa a la ruta que registra el pago
+    next();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al validar el pago de la membresía' });
+  }
+});
+
 // POST /membresias/:id/pagos — registrar pago: Administrador y Recepcionista.
 // Ahora también guarda QUIÉN lo registró, usando req.usuario (llenado por
 // verificarToken a partir del JWT) — no confiamos en que el frontend

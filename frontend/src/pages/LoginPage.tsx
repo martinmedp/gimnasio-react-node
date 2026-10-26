@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import api from '../api'
 import { useAuth } from '../context/AuthContext'
@@ -7,6 +7,19 @@ function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+
+  // Si llegamos aquí porque la sesión expiró (lo marca api.ts), mostramos
+  // un aviso. Se lee en el valor inicial del estado (sin efectos
+  // secundarios) y la marca se borra aparte, en el efecto de abajo
+  const [aviso] = useState(() =>
+    sessionStorage.getItem('sesionExpirada') === '1'
+      ? 'Tu sesión expiró. Inicia sesión de nuevo para continuar.'
+      : ''
+  )
+
+  useEffect(() => {
+    sessionStorage.removeItem('sesionExpirada')
+  }, [])
 
   const { login } = useAuth()
   const navigate = useNavigate()
@@ -17,13 +30,9 @@ function LoginPage() {
 
     try {
       const response = await api.post('/auth/login', { email, password })
-      // Ahora pasamos también response.data.usuario (que el backend ya
-      // venía devolviendo desde el principio, solo que antes lo ignorábamos)
       login(response.data.token, response.data.usuario)
       navigate('/')
     } catch (err: any) {
-      // Mostramos el mensaje específico del backend si existe (por ejemplo,
-      // "cuenta pendiente de activación"), en vez de un genérico siempre
       setError(err.response?.data?.error || 'Credenciales inválidas')
     }
   }
@@ -33,6 +42,7 @@ function LoginPage() {
       <form onSubmit={handleSubmit} className="bg-slate-800 p-8 rounded-lg w-80">
         <h1 className="text-2xl font-bold text-white mb-6">Iniciar sesión</h1>
 
+        {aviso && <p className="text-yellow-300 text-sm mb-4">{aviso}</p>}
         {error && <p className="text-red-400 mb-4">{error}</p>}
 
         <input
@@ -55,7 +65,6 @@ function LoginPage() {
           Entrar
         </button>
 
-        {/* Enlace hacia el registro público, para un Cliente nuevo */}
         <p className="text-slate-400 text-sm text-center mt-4">
           ¿Eres nuevo?{' '}
           <a href="/registro" className="text-blue-400 hover:underline">

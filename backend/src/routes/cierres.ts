@@ -58,6 +58,7 @@ router.get('/previsualizar', verificarToken, verificarRol(...ROLES_CONTABLES), a
     const pagos = await prisma.pago.findMany({
       where: {
         cierreCajaId: null,
+        anulado: false, // un pago anulado nunca entra a un cierre
         fecha: { gte: rango.inicio, lte: rango.fin },
       },
       include: {
@@ -222,7 +223,7 @@ router.post('/', verificarToken, verificarRol(...ROLES_CONTABLES), async (req: R
 
     const resultado = await prisma.$transaction(async (tx) => {
       const pagosPendientes = await tx.pago.findMany({
-        where: { cierreCajaId: null, fecha: { gte: rango.inicio, lte: rango.fin } },
+        where: { cierreCajaId: null, anulado: false, fecha: { gte: rango.inicio, lte: rango.fin } },
         select: { id: true, monto: true, metodoPago: true },
       });
 
@@ -266,7 +267,7 @@ router.post('/', verificarToken, verificarRol(...ROLES_CONTABLES), async (req: R
       const idsGastos = gastosPendientes.map((g) => g.id);
 
       const pagosActualizados = await tx.pago.updateMany({
-        where: { id: { in: idsPagos }, cierreCajaId: null },
+        where: { id: { in: idsPagos }, cierreCajaId: null, anulado: false },
         data: { cierreCajaId: nuevoCierre.id },
       });
       const gastosActualizados = await tx.gasto.updateMany({
