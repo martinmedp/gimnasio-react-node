@@ -1,13 +1,12 @@
 import { Router } from 'express';
-import multer from 'multer';
-import path from 'path';
 import bcrypt from 'bcrypt';
 import prisma from '../prisma';
 import { verificarToken, verificarRol, verificarPropioCliente } from '../middleware/auth';
+import { crearSubidaDeImagenes } from '../utils/subidas';
 
 const router = Router();
 
-const storage = multer.diskStorage({
+/* const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, path.join(__dirname, '../../uploads/clientes'));
   },
@@ -15,9 +14,12 @@ const storage = multer.diskStorage({
     const nombreUnico = `${Date.now()}-${file.originalname}`;
     cb(null, nombreUnico);
   },
-});
+}); */
+// const upload = multer({ storage });
 
-const upload = multer({ storage });
+
+// Subida de fotos con validación de tipo y tamaño (ver utils/subidas.ts)
+const upload = crearSubidaDeImagenes('clientes');
 
 const DIAS_ALERTA_VENCIMIENTO = 5;
 

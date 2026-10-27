@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import prisma from '../prisma';
 
 // Extendemos el tipo Request de Express para poder guardar
 // los datos del usuario autenticado dentro de la petición (req.usuario)
@@ -8,7 +9,7 @@ export interface RequestConUsuario extends Request {
 }
 
 // Middleware que verifica que la petición traiga un token JWT válido
-export function verificarToken(req: RequestConUsuario, res: Response, next: NextFunction) {
+/* export function verificarToken(req: RequestConUsuario, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization;
 
   if (!authHeader) {
@@ -31,7 +32,62 @@ export function verificarToken(req: RequestConUsuario, res: Response, next: Next
   } catch (error) {
     return res.status(401).json({ error: 'Token inválido o expirado' });
   }
+} */
+// Verifica que la petición traiga un token válido Y que la cuenta siga
+// existiendo y activa. Antes solo se leía el token: si desactivabas o
+// borrabas una cuenta, o le cambiabas el rol, el token ya emitido seguía
+// valiendo hasta que vencía (8 horas). Ahora se consulta la base en cada
+// petición (una búsqueda por clave primaria, muy liviana) y se usan los
+// datos ACTUALES del usuario, no los que quedaron escritos en el token
+export async function verificarToken(req: RequestConUsuario, res: Response, next: NextFunction) {
+  const encabezado = req.headers.authorization;
+
+  if (!encabezado) {
+    return res.status(401).json({ error: 'Token no proporcionado' });
+  }
+
+  const token = encabezado.split(' ')[1];
+
+  // Paso 1: comprobar la firma y la vigencia del token. Aquí solo
+  // necesitamos saber de quién es (el id)
+  let idUsuario: number;
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET as string) as { id: number };
+    idUsuario = payload.id;
+  } catch (error) {
+    return res.status(401).json({ error: 'Token inválido o expirado' });
+  }
+
+  // Paso 2: comprobar en la base que la cuenta existe y está activa
+  try {
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: idUsuario },
+      select: { id: true, email: true, activo: true, clienteId: true, rol: { select: { nombre: true } } },
+    });
+
+    // Cuenta eliminada o desactivada: 401, igual que un token vencido.
+    // La pantalla ya sabe qué hacer con un 401: cerrar la sesión y llevar al login
+    if (!usuario || !usuario.activo) {
+      return res.status(401).json({ error: 'La cuenta está desactivada o ya no existe' });
+    }
+
+    // El rol y el clienteId vienen de la base, no del token: si el
+    // Administrador los cambia, la nueva configuración vale de inmediato
+    req.usuario = {
+      id: usuario.id,
+      email: usuario.email,
+      rol: usuario.rol.nombre,
+      clienteId: usuario.clienteId,
+    };
+
+    next();
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al verificar la sesión' });
+  }
 }
+
+
 
 // verificarRol es una "fábrica de middlewares": recibe los roles permitidos
 // y devuelve el middleware real. Se usa así: verificarRol('Administrador'),

@@ -1,6 +1,7 @@
 import { Link, Outlet } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import MenuDesplegable from './MenuDesplegable'
+import SincronizarSesion from './SincronizarSesion'
 
 function Layout() {
   const { logout, usuario } = useAuth()
@@ -35,6 +36,7 @@ function Layout() {
 
   return (
     <div className="min-h-screen bg-slate-900">
+      <SincronizarSesion />
       <nav className="sticky top-0 z-40 bg-slate-800 p-4 flex justify-between items-center">
         <div className="flex gap-4 items-center flex-wrap">
           <Link to="/" className="text-white font-bold">

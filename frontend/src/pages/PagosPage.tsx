@@ -7,6 +7,7 @@ import TarjetaDato from '../components/TarjetaDato'
 import TablaPagos, { ChipsMetodo } from '../components/TablaPagos'
 import { formatearDinero, rangoPreset } from '../utils/formato'
 import type { PagosConResumen } from '../types/contabilidad'
+import { mensajeDeError } from '../utils/errores'
 
 function PagosPage() {
   const { usuario } = useAuth()
@@ -37,7 +38,7 @@ function PagosPage() {
 
   // Los filtros van dentro de la queryKey: cada vez que cambian, TanStack
   // Query entiende que es otra consulta y vuelve a pedir los datos solo
-  const { data, isLoading, isError } = useQuery<PagosConResumen>({
+  const { data, isLoading, isError, error } = useQuery<PagosConResumen>({
     queryKey: ['pagos', params],
     queryFn: async () => {
       const response = await api.get('/pagos', { params })
@@ -169,11 +170,12 @@ function PagosPage() {
       </div>
 
       {isLoading && <p className="text-white">Cargando...</p>}
-      {isError && (
+      {/*  {isError && (
         <p className="text-red-400">
           No se pudieron cargar los pagos. Revisa que la fecha "desde" no sea posterior a "hasta".
         </p>
-      )}
+      )} */}
+      {isError && <p className="text-red-400">{mensajeDeError(error, 'No se pudieron cargar los pagos.')}</p>}
 
       {data && (
         <>

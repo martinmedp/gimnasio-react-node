@@ -366,7 +366,7 @@ function MembresiaPage() {
       {/* Ventana de anulación: pide motivo y contraseña. No se cierra al
           hacer clic fuera, para no perder lo escrito por accidente */}
       {pagoAAnular && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-60 p-4">
           <form onSubmit={handleConfirmarAnulacion} className="bg-slate-800 rounded p-6 w-full max-w-md">
             <h2 className="text-white font-bold text-lg mb-2">Anular pago</h2>
             <p className="text-slate-300 text-sm mb-1">

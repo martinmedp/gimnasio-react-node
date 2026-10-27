@@ -52,7 +52,7 @@ function TablaPagos({ pagos, mostrarCierre = false }: TablaPagosProps) {
                     <>
                       <span className="bg-red-700 text-xs px-2 py-1 rounded">Anulado</span>
                       {pago.motivoAnulacion && (
-                        <span className="block text-red-300 text-xs mt-1 max-w-[12rem] break-words">
+                        <span className="block text-red-300 text-xs mt-1 max-w-48 wrap-break-word">
                           {pago.motivoAnulacion}
                         </span>
                       )}

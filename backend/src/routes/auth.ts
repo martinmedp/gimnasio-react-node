@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import prisma from '../prisma';
+import { verificarToken, RequestConUsuario } from '../middleware/auth';
 
 const router = Router();
 
@@ -122,6 +123,40 @@ router.post('/registro-cliente', async (req, res) => {
     }
     console.error(error);
     res.status(500).json({ error: 'Error al registrar la cuenta' });
+  }
+});
+
+// GET /auth/me — devuelve los datos ACTUALES de la persona que tiene la
+// sesión abierta, leídos de la base de datos. El frontend lo consulta al
+// abrir la app para tomar el rol vigente: si el Administrador le cambió el
+// rol o la cuenta mientras tenía la sesión abierta, la interfaz se
+// entera sin tener que cerrar sesión. La forma de la respuesta es la
+// misma que la del login
+router.get('/me', verificarToken, async (req: RequestConUsuario, res) => {
+  try {
+    if (!req.usuario) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+
+    const usuario = await prisma.usuario.findUnique({
+      where: { id: req.usuario.id },
+      select: { id: true, nombre: true, email: true, clienteId: true, rol: { select: { nombre: true } } },
+    });
+
+    if (!usuario) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+
+    res.json({
+      id: usuario.id,
+      nombre: usuario.nombre,
+      email: usuario.email,
+      rol: usuario.rol.nombre,
+      clienteId: usuario.clienteId,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener la sesión' });
   }
 });
 

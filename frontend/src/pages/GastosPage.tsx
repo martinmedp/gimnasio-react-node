@@ -8,6 +8,7 @@ import TarjetaDato from '../components/TarjetaDato'
 import TablaGastos from '../components/TablaGastos'
 import { formatearDinero, rangoPreset } from '../utils/formato'
 import type { GastoRegistro } from '../types/contabilidad'
+import { mensajeDeError } from '../utils/errores'
 
 interface CategoriaGasto {
   id: number
@@ -68,7 +69,7 @@ function GastosPage() {
 
   // Los filtros van dentro de la queryKey: cada vez que cambian, TanStack
   // Query entiende que es otra consulta y vuelve a pedir los datos solo
-  const { data, isLoading, isError } = useQuery<GastosConResumen>({
+  const { data, isLoading, isError, error } = useQuery<GastosConResumen>({
     queryKey: ['gastos', params],
     queryFn: async () => {
       const response = await api.get('/gastos', { params })
@@ -311,11 +312,12 @@ function GastosPage() {
       </div>
 
       {isLoading && <p className="text-white">Cargando...</p>}
-      {isError && (
+      {/* {isError && (
         <p className="text-red-400">
           No se pudieron cargar los gastos. Revisa que la fecha "desde" no sea posterior a "hasta".
         </p>
-      )}
+      )} */}
+      {isError && <p className="text-red-400">{mensajeDeError(error, 'No se pudieron cargar los gastos.')}</p>}
 
       {data && (
         <>

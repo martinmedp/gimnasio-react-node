@@ -1,12 +1,11 @@
 import { Router } from 'express';
-import multer from 'multer';
-import path from 'path';
 import prisma from '../prisma';
 import { verificarToken, verificarRol } from '../middleware/auth';
+import { crearSubidaDeImagenes } from '../utils/subidas';
 
 const router = Router();
 
-const storage = multer.diskStorage({
+/* const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, path.join(__dirname, '../../uploads/ejercicios'));
   },
@@ -16,7 +15,10 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({ storage });
+const upload = multer({ storage }); */
+
+// Subida de fotos con validación de tipo y tamaño (ver utils/subidas.ts)
+const upload = crearSubidaDeImagenes('ejercicios');
 
 // GET /ejercicios — el catálogo se puede VER por cualquier rol logueado
 // (incluido Cliente, para revisar cómo hacer sus ejercicios asignados)
