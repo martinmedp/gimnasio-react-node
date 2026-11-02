@@ -52,10 +52,20 @@ function Layout() {
 
               {/* Usuarios es administración del sistema, no es del gimnasio
                   ni del dinero: queda como enlace suelto, solo para el Administrador */}
-              {rol === 'Administrador' && (
+              {/* {rol === 'Administrador' && (
                 <Link to="/usuarios" className="text-slate-300 hover:text-white">
                   Usuarios
                 </Link>
+              )} */}
+              {rol === 'Administrador' && (
+                <>
+                  <Link to="/usuarios" className="text-slate-300 hover:text-white">
+                    Usuarios
+                  </Link>
+                  <Link to="/respaldos" className="text-slate-300 hover:text-white">
+                    Respaldos
+                  </Link>
+                </>
               )}
             </>
           )}

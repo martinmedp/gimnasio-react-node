@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Html5Qrcode } from 'html5-qrcode'
 import { useNotification } from '../context/NotificationContext'
-import api from '../api'
+import api, { API_URL } from '../api'
 import TarjetaDato from '../components/TarjetaDato'
 import { formatearFechaHora, rangoPreset } from '../utils/formato'
 
@@ -355,7 +355,7 @@ function AsistenciaPage() {
           <div key={asistencia.id} className="bg-slate-800 rounded p-3 flex items-center gap-3">
             {asistencia.cliente.fotoUrl ? (
               <img
-                src={`http://localhost:3000${asistencia.cliente.fotoUrl}`}
+                src={`${API_URL}${asistencia.cliente.fotoUrl}`}
                 alt={asistencia.cliente.nombre}
                 className="w-10 h-10 object-cover rounded-full"
               />
@@ -527,7 +527,7 @@ function AsistenciaPage() {
           raro con la entrada. No se cierra al hacer clic fuera, para que
           nadie lo descarte por accidente: hay que elegir una opción */}
       {pendienteConfirmar && (
-        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60] p-4">
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-60 p-4">
           <div className="bg-slate-800 rounded p-6 w-full max-w-md">
             <h2 className="text-white font-bold text-lg mb-1">Confirmar entrada</h2>
             <p className="text-slate-300 text-sm mb-3">

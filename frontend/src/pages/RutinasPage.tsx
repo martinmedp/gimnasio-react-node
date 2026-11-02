@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
-import api from '../api'
+import api, { API_URL } from '../api'
 
 interface Cliente {
   id: number
@@ -27,7 +27,8 @@ interface Ejercicio {
 interface RutinaEjercicio {
   id: number
   series: number
-  repeticiones: number
+  // Texto: "12", "12,14,16,12" o texto libre como "al fallo"
+  repeticiones: string
   peso: string | null
   orden: number
   ejercicio: Ejercicio
@@ -47,6 +48,18 @@ function formatearPeso(peso: string | null): string {
   const valores = peso.split(',').map((v) => v.trim()).filter((v) => v !== '')
   if (valores.length <= 1) return `${peso} kg`
   return valores.map((v) => `${v}kg`).join(', ')
+}
+
+// Las repeticiones son texto. Si solo tienen números y separadores
+// ("12", "12,14,16,12", "10-12") se muestran con la palabra "reps"; si
+// traen letras ("al fallo") se muestran tal cual, sin agregarles nada
+function formatearRepeticiones(repeticiones: string): string {
+  const texto = repeticiones.trim()
+  if (/^[\d\s,-]+$/.test(texto)) {
+    const valores = texto.split(',').map((v) => v.trim()).filter((v) => v !== '')
+    return `${valores.join(', ')} reps`
+  }
+  return texto
 }
 
 function RutinasPage() {
@@ -157,7 +170,7 @@ function RutinasPage() {
   const handleAgregarEjercicio = async (e: React.FormEvent, rutinaId: number) => {
     e.preventDefault()
 
-    if (!ejercicioSeleccionado || !series || !repeticiones) {
+    if (!ejercicioSeleccionado || !series || !repeticiones.trim()) {
       notificar('Selecciona un ejercicio, y completa series y repeticiones', 'error')
       return
     }
@@ -166,7 +179,7 @@ function RutinasPage() {
       await api.post(`/rutinas/${rutinaId}/ejercicios`, {
         ejercicioId: ejercicioSeleccionado,
         series,
-        repeticiones,
+        repeticiones: repeticiones.trim(),
         peso: peso || null,
       })
       setRutinaAgregandoEjercicio(null)
@@ -188,7 +201,7 @@ function RutinasPage() {
     e.preventDefault()
     if (!itemEditando) return
 
-    if (!seriesEdit || !repeticionesEdit) {
+    if (!seriesEdit || !repeticionesEdit.trim()) {
       notificar('Series y repeticiones son obligatorios', 'error')
       return
     }
@@ -196,7 +209,7 @@ function RutinasPage() {
     try {
       await api.put(`/rutinas/${rutinaId}/ejercicios/${itemEditando.id}`, {
         series: seriesEdit,
-        repeticiones: repeticionesEdit,
+        repeticiones: repeticionesEdit.trim(),
         peso: pesoEdit || null,
       })
       setItemEditando(null)
@@ -342,14 +355,17 @@ function RutinasPage() {
 
                 <input
                   type="number"
+                  min="1"
                   placeholder="Series"
                   value={series}
                   onChange={(e) => setSeries(e.target.value)}
                   className="p-2 rounded bg-slate-700 text-white"
                 />
+                {/* Texto: permite "12", "12,14,16,12" o "al fallo" */}
                 <input
-                  type="number"
-                  placeholder="Repeticiones"
+                  type="text"
+                  maxLength={50}
+                  placeholder="Reps: 12 o 12,14,16,12"
                   value={repeticiones}
                   onChange={(e) => setRepeticiones(e.target.value)}
                   className="p-2 rounded bg-slate-700 text-white"
@@ -362,8 +378,9 @@ function RutinasPage() {
                   className="p-2 rounded bg-slate-700 text-white col-span-2"
                 />
                 <p className="text-slate-400 text-xs col-span-4 -mt-1">
-                  Peso opcional. Un solo valor si es el mismo en todas las series, o varios
-                  separados por coma (uno por serie), ej: 12,14,16,13
+                  Repeticiones y peso: un solo valor si es igual en todas las series, o varios separados por coma
+                  (uno por serie), ej: 12,14,16,12. Las repeticiones también admiten texto libre, ej: al fallo. El
+                  peso es opcional.
                 </p>
                 <button type="submit" className="bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 text-sm col-span-4">
                   Agregar
@@ -381,14 +398,16 @@ function RutinasPage() {
                 </p>
                 <input
                   type="number"
+                  min="1"
                   placeholder="Series"
                   value={seriesEdit}
                   onChange={(e) => setSeriesEdit(e.target.value)}
                   className="p-2 rounded bg-slate-700 text-white"
                 />
                 <input
-                  type="number"
-                  placeholder="Repeticiones"
+                  type="text"
+                  maxLength={50}
+                  placeholder="Reps: 12 o 12,14,16,12"
                   value={repeticionesEdit}
                   onChange={(e) => setRepeticionesEdit(e.target.value)}
                   className="p-2 rounded bg-slate-700 text-white"
@@ -423,7 +442,7 @@ function RutinasPage() {
                   <div key={item.id} className="flex items-center gap-3 bg-slate-900 p-2 rounded">
                     {item.ejercicio.imagenUrl ? (
                       <img
-                        src={`http://localhost:3000${item.ejercicio.imagenUrl}`}
+                        src={`${API_URL}${item.ejercicio.imagenUrl}`}
                         alt={item.ejercicio.nombre}
                         onClick={() => setEjercicioAmpliado(item.ejercicio)}
                         className="w-12 h-12 object-cover rounded cursor-pointer hover:opacity-80 transition"
@@ -436,7 +455,7 @@ function RutinasPage() {
                     <div className="flex-1">
                       <p className="text-white text-sm font-bold">{item.ejercicio.nombre}</p>
                       <p className="text-slate-400 text-xs">
-                        {item.series} series x {item.repeticiones} reps — {formatearPeso(item.peso)}
+                        {item.series} series x {formatearRepeticiones(item.repeticiones)} — {formatearPeso(item.peso)}
                       </p>
                     </div>
                     {/* Editar y quitar ejercicios: solo quien gestiona rutinas */}
@@ -471,7 +490,7 @@ function RutinasPage() {
         >
           <div className="max-w-3xl w-full">
             <img
-              src={`http://localhost:3000${ejercicioAmpliado.imagenUrl}`}
+              src={`${API_URL}${ejercicioAmpliado.imagenUrl}`}
               alt={ejercicioAmpliado.nombre}
               className="w-full max-h-[80vh] object-contain rounded"
             />

@@ -25,6 +25,7 @@ model Usuario {
   activo                 Boolean      @default(true)
   pagosRegistrados       Pago[]       @relation("PagoRegistradoPor")
   pagosAnulados          Pago[]       @relation("PagoAnuladoPor") // pagos que este usuario anuló
+  respaldosCreados       Respaldo[]   @relation("RespaldoCreadoPor") // respaldos que este usuario lanzó a mano
   gastosRegistrados      Gasto[] // nuevo: relación inversa hacia los gastos que este usuario registró
   cierresRealizados      CierreCaja[] @relation("CierreCerradoPor")
   cierresRevertidos      CierreCaja[] @relation("CierreRevertidoPor")
@@ -248,9 +249,37 @@ model RutinaEjercicio {
   rutinaId     Int
   ejercicioId  Int
   series       Int
-  repeticiones Int
+  repeticiones String
   peso         String?
   orden        Int
   rutina       Rutina    @relation(fields: [rutinaId], references: [id])
   ejercicio    Ejercicio @relation(fields: [ejercicioId], references: [id])
+}
+
+// Configuración de los respaldos automáticos. Es una sola fila (id = 1),
+// que el sistema crea la primera vez que se consulta
+model ConfiguracionRespaldo {
+  id     Int     @id
+  activo Boolean @default(false)
+  // Hora diaria del respaldo, en formato de 24 horas: "20:00"
+  hora   String  @default("20:00")
+}
+
+// Historial de respaldos: cada intento queda registrado, sea bueno o fallido
+model Respaldo {
+  id          Int      @id @default(autoincrement())
+  creadoEn    DateTime @default(now())
+  // "manual" (botón) o "programado" (reloj del sistema)
+  origen      String
+  // "ok" o "error"
+  estado      String
+  // Nombre del .zip, SIN ruta (la ruta la arma el servidor). Queda en null
+  // si el archivo ya se eliminó por la rotación, o si el intento falló
+  archivo     String?
+  tamanoBytes Int?
+  // Detalle del error, si el intento falló
+  mensaje     String?  @db.Text
+  // Quién lo lanzó (vacío si fue programado)
+  creadoPorId Int?
+  creadoPor   Usuario? @relation("RespaldoCreadoPor", fields: [creadoPorId], references: [id])
 }

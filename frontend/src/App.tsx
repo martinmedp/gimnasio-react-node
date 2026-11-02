@@ -20,6 +20,7 @@ import PagosPage from './pages/PagosPage'
 import GastosPage from './pages/GastosPage'
 import CategoriasGastoPage from './pages/CategoriasGastoPage'
 import CierresPage from './pages/CierresPage'
+import RespaldosPage from './pages/RespaldosPage'
 
 // Grupos de roles reutilizados en varias rutas. Reflejan la matriz de
 // permisos del backend y el menú de navegación
@@ -57,6 +58,7 @@ function App() {
           {/* Solo Administrador */}
           <Route element={<RutaPorRol roles={['Administrador']} />}>
             <Route path="/usuarios" element={<UsuariosPage />} />
+            <Route path="/respaldos" element={<RespaldosPage />} />
           </Route>
 
           {/* Pantallas por cliente: cada una la ven los roles con permiso

@@ -1,3 +1,6 @@
+import 'dotenv/config';
+import './entorno';
+
 import express, { NextFunction, Request, Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -22,9 +25,13 @@ import cierresRouter from './routes/cierres';
 import categoriasGastoRouter from './routes/categoriasGasto';
 import gastosRouter from './routes/gastos';
 import estadisticasRouter from './routes/estadisticas';
+import { validarCuerpo } from './utils/validar';
+import { esquemaRegistroCliente } from './utils/esquemas';
+import respaldosRouter from './routes/respaldos';
+import { iniciarProgramador } from './utils/programador';
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT ?? 3000);
 
 // Cabeceras de seguridad estándar. Excepción necesaria: se permite que el
 // frontend (otro origen) cargue las imágenes de /uploads
@@ -56,6 +63,9 @@ const limitadorRegistro = rateLimit({
 
 app.use('/auth/login', limitadorLogin);
 app.use('/auth/registro-cliente', limitadorRegistro);
+// El registro público no tiene token que verificar, así que su validación
+// va aquí, justo después del límite de intentos y antes del router de auth
+app.post('/auth/registro-cliente', validarCuerpo(esquemaRegistroCliente));
 
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
@@ -80,6 +90,7 @@ app.use('/cierres', cierresRouter);
 app.use('/categorias-gasto', categoriasGastoRouter);
 app.use('/gastos', gastosRouter);
 app.use('/estadisticas', estadisticasRouter);
+app.use('/respaldos', respaldosRouter);
 
 // Manejador de errores de subida de archivos. Express reconoce un
 // manejador de errores porque tiene CUATRO parámetros, y debe ir DESPUÉS
@@ -98,6 +109,16 @@ app.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
   next(err);
 });
 
+/* app.listen(PORT, () => {
+  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+});
+ */
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
+
+  // Arranca el reloj de los respaldos programados (lee la configuración de
+  // la base). Si falla, solo se avisa: el resto del sistema sigue funcionando
+  iniciarProgramador().catch((error) => {
+    console.error('No se pudo iniciar el programador de respaldos:', error);
+  });
 });

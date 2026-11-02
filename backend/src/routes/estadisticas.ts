@@ -20,9 +20,8 @@ const DIAS_ASISTENCIA = 30;
 const NOMBRES_DIA = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 // Clave "AAAA-MM" de una fecha. Usa getFullYear/getMonth (hora LOCAL del
-// servidor, Colombia), igual que el resto de cálculos de fechas del
-// proyecto: un pago hecho el 31 a las 9 p. m. cuenta para ese mes y no
-// para el siguiente, como pasaría si midiéramos en UTC
+// servidor, Colombia): un pago hecho el 31 a las 9 p. m. cuenta para ese
+// mes y no para el siguiente, como pasaría si midiéramos en UTC
 function claveMes(fecha: Date): string {
   const mes = String(fecha.getMonth() + 1).padStart(2, '0');
   return `${fecha.getFullYear()}-${mes}`;
@@ -44,8 +43,11 @@ interface AcumuladoMes {
 // GET /estadisticas/finanzas — ingresos y gastos de los últimos 6 meses y
 // el desglose por método de pago del mes actual. Solo Administrador.
 //
-// Cuenta TODOS los pagos y gastos, estén o no incluidos en un cierre de
-// caja: el cierre es un control de caja, no cambia cuánto entró ni salió
+// Cuenta todos los pagos VÁLIDOS y todos los gastos, estén o no incluidos
+// en un cierre de caja: el cierre es un control de caja, no cambia cuánto
+// entró ni salió. Los pagos ANULADOS no son ingresos y se excluyen. Los
+// gastos no tienen anulación (un gasto se elimina y desaparece), así que
+// no hay nada que excluir en ellos
 router.get('/finanzas', verificarToken, verificarRol('Administrador'), async (req, res) => {
   try {
     const ahora = new Date();
@@ -57,7 +59,9 @@ router.get('/finanzas', verificarToken, verificarRol('Administrador'), async (re
     // select trae solo las columnas necesarias. Dos consultas en paralelo
     const [pagos, gastos] = await Promise.all([
       prisma.pago.findMany({
-        where: { fecha: { gte: inicioRango } },
+        // anulado: false → los pagos anulados NO suman, ni en las barras de
+        // los 6 meses ni en la dona por método de pago (ambas salen de esta lista)
+        where: { fecha: { gte: inicioRango }, anulado: false },
         select: { fecha: true, monto: true, metodoPago: true },
       }),
       prisma.gasto.findMany({
@@ -100,6 +104,9 @@ router.get('/finanzas', verificarToken, verificarRol('Administrador'), async (re
       neto: m.ingresos.minus(m.gastos).toNumber(),
     }));
 
+    // El mes actual es el último de la lista. Su desglose por método de
+    // pago reutiliza resumirPagos, la misma función de los cierres. Como
+    // "pagos" ya viene sin los anulados, la dona tampoco los cuenta
     const actual = meses[meses.length - 1];
     const pagosDelMes = pagos.filter((p) => claveMes(p.fecha) === claveMes(ahora));
     const resumenMes = resumirPagos(pagosDelMes);

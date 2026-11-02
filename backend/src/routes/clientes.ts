@@ -3,6 +3,8 @@ import bcrypt from 'bcrypt';
 import prisma from '../prisma';
 import { verificarToken, verificarRol, verificarPropioCliente } from '../middleware/auth';
 import { crearSubidaDeImagenes } from '../utils/subidas';
+import { validarCuerpo } from '../utils/validar';
+import { esquemaCuentaCliente, esquemaClaveCliente } from '../utils/esquemas';
 
 const router = Router();
 
@@ -192,7 +194,8 @@ router.put(
 // del auto-registro, aquí es el propio Administrador quien la está dando
 // de alta, así que no tiene sentido dejarla pendiente de su propia aprobación).
 // Administrador
-router.post('/:id/cuenta', verificarToken, verificarRol('Administrador'), async (req, res) => {
+// router.post('/:id/cuenta', verificarToken, verificarRol('Administrador'), async (req, res) => {
+router.post('/:id/cuenta', verificarToken, verificarRol('Administrador'), validarCuerpo(esquemaCuentaCliente), async (req, res) => {
   try {
     const { id } = req.params;
     const { email, password } = req.body;
@@ -271,7 +274,8 @@ router.put('/:id/cuenta/estado', verificarToken, verificarRol('Administrador'), 
   }
 });
 
-router.put('/:id/cuenta/password', verificarToken, verificarRol('Administrador'), async (req, res) => {
+// router.put('/:id/cuenta/password', verificarToken, verificarRol('Administrador'), async (req, res) => {
+router.put('/:id/cuenta/password', verificarToken, verificarRol('Administrador'), validarCuerpo(esquemaClaveCliente), async (req, res) => {
   try {
     const { id } = req.params;
     const { password } = req.body;

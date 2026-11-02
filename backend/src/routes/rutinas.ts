@@ -101,7 +101,7 @@ router.post('/:rutinaId/ejercicios', verificarToken, verificarRol('Administrador
         rutinaId: Number(rutinaId),
         ejercicioId: Number(ejercicioId),
         series: Number(series),
-        repeticiones: Number(repeticiones),
+        repeticiones: String(repeticiones).trim(),
         peso: peso || null,
         orden: orden ? Number(orden) : 1,
       },
@@ -133,7 +133,7 @@ router.put('/:rutinaId/ejercicios/:rutinaEjercicioId', verificarToken, verificar
       where: { id: Number(rutinaEjercicioId) },
       data: {
         series: Number(series),
-        repeticiones: Number(repeticiones),
+        repeticiones: String(repeticiones).trim(),
         peso: peso || null,
       },
       include: { ejercicio: true },

@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
-import api from '../api'
+import api, { API_URL } from '../api'
 import Tooltip from '../components/Tooltip'
 
 interface CuentaVinculada {
@@ -150,8 +150,8 @@ function ClientesPage() {
       notificar('Email y contraseña son obligatorios', 'error')
       return
     }
-    if (passwordNuevaCuenta.length < 6) {
-      notificar('La contraseña debe tener al menos 6 caracteres', 'error')
+    if (passwordNuevaCuenta.length < 8) {
+      notificar('La contraseña debe tener al menos 8 caracteres', 'error')
       return
     }
 
@@ -196,8 +196,8 @@ function ClientesPage() {
   const handleRestablecerPassword = async () => {
     if (!clienteEditando) return
 
-    if (!nuevaPasswordEdit || nuevaPasswordEdit.length < 6) {
-      notificar('La contraseña debe tener al menos 6 caracteres', 'error')
+    if (!nuevaPasswordEdit || nuevaPasswordEdit.length < 8) {
+      notificar('La contraseña debe tener al menos 8 caracteres', 'error')
       return
     }
 
@@ -326,8 +326,8 @@ function ClientesPage() {
                       type="button"
                       onClick={handleCambiarEstadoCuenta}
                       className={`px-3 py-2 rounded text-sm text-white ${clienteEditando.usuario.activo
-                          ? 'bg-orange-600 hover:bg-orange-700'
-                          : 'bg-green-600 hover:bg-green-700'
+                        ? 'bg-orange-600 hover:bg-orange-700'
+                        : 'bg-green-600 hover:bg-green-700'
                         }`}
                     >
                       {clienteEditando.usuario.activo ? 'Desactivar acceso' : 'Activar acceso'}
@@ -363,7 +363,7 @@ function ClientesPage() {
                     />
                     <input
                       type="password"
-                      placeholder="Contraseña (mín. 6 caracteres)"
+                      placeholder="Contraseña (mín. 8 caracteres)"
                       value={passwordNuevaCuenta}
                       onChange={(e) => setPasswordNuevaCuenta(e.target.value)}
                       className="p-2 rounded bg-slate-700 text-white"
@@ -419,7 +419,7 @@ function ClientesPage() {
                   <label htmlFor={`foto-${cliente.id}`} className="cursor-pointer block" title="Cambiar foto">
                     {cliente.fotoUrl ? (
                       <img
-                        src={`http://localhost:3000${cliente.fotoUrl}`}
+                        src={`${API_URL}${cliente.fotoUrl}`}
                         alt={cliente.nombre}
                         className="w-10 h-10 object-cover rounded-full hover:opacity-75 transition"
                       />

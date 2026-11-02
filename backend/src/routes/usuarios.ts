@@ -2,6 +2,8 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import prisma from '../prisma';
 import { verificarToken, verificarRol } from '../middleware/auth';
+import { validarCuerpo } from '../utils/validar';
+import { esquemaUsuarioNuevo, esquemaUsuarioEdicion } from '../utils/esquemas';
 
 const router = Router();
 
@@ -26,7 +28,9 @@ router.get('/', verificarToken, verificarRol('Administrador'), async (req, res) 
   }
 });
 
-router.post('/', verificarToken, verificarRol('Administrador'), async (req, res) => {
+// router.post('/', verificarToken, verificarRol('Administrador'), async (req, res) => {
+
+router.post('/', verificarToken, verificarRol('Administrador'), validarCuerpo(esquemaUsuarioNuevo), async (req, res) => {
   try {
     const { nombre, email, password, rolId } = req.body;
 
@@ -57,7 +61,7 @@ router.post('/', verificarToken, verificarRol('Administrador'), async (req, res)
   }
 });
 
-router.put('/:id', verificarToken, verificarRol('Administrador'), async (req, res) => {
+router.put('/:id', verificarToken, verificarRol('Administrador'), validarCuerpo(esquemaUsuarioEdicion), async (req, res) => {
   try {
     const { id } = req.params;
     const { nombre, email, password, rolId } = req.body;

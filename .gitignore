@@ -16,3 +16,6 @@ backend/uploads/ejercicios/*
 .DS_Store
 .vscode/
 *.log
+
+# Respaldos de la base de datos (datos personales: nunca deben subir al repositorio)
+backend/respaldos/

@@ -33,7 +33,21 @@ function LoginPage() {
       login(response.data.token, response.data.usuario)
       navigate('/')
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Credenciales inválidas')
+      // Sin respuesta del servidor (apagado, dirección equivocada o
+      // bloqueado por CORS) el problema no son las credenciales
+      if (!err.response) {
+        setError('No se pudo conectar con el servidor. Revisa que el backend esté en marcha y la dirección sea correcta.')
+        return
+      }
+
+      // Si el backend explicó el motivo, se muestra tal cual. "Credenciales
+      // inválidas" solo corresponde a un 401; cualquier otro código indica
+      // otro problema, y mostrarlo ayuda a encontrarlo
+      const estado = err.response.status
+      setError(
+        err.response.data?.error ||
+        (estado === 401 ? 'Credenciales inválidas' : `Error inesperado del servidor (código ${estado})`)
+      )
     }
   }
 

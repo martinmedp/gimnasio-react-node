@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
-import api from '../api'
+import api, { API_URL } from '../api'
 
 interface SeccionCuerpo {
   id: number
@@ -218,7 +218,7 @@ function EjerciciosPage() {
             <div key={ejercicio.id} className="bg-slate-800 rounded p-4">
               {ejercicio.imagenUrl ? (
                 <img
-                  src={`http://localhost:3000${ejercicio.imagenUrl}`}
+                  src={`${API_URL}${ejercicio.imagenUrl}`}
                   alt={ejercicio.nombre}
                   onClick={() => setEjercicioAmpliado(ejercicio)}
                   className="w-full h-56 object-contain bg-slate-900 rounded mb-2 cursor-pointer hover:opacity-80 transition"
@@ -265,7 +265,7 @@ function EjerciciosPage() {
         >
           <div className="max-w-3xl w-full">
             <img
-              src={`http://localhost:3000${ejercicioAmpliado.imagenUrl}`}
+              src={`${API_URL}${ejercicioAmpliado.imagenUrl}`}
               alt={ejercicioAmpliado.nombre}
               className="w-full max-h-[80vh] object-contain rounded"
             />
@@ -320,7 +320,7 @@ function EjerciciosPage() {
               <div>
                 <p className="text-slate-400 text-xs mb-1">Imagen actual:</p>
                 <img
-                  src={`http://localhost:3000${ejercicioEditando.imagenUrl}`}
+                  src={`${API_URL}${ejercicioEditando.imagenUrl}`}
                   alt={ejercicioEditando.nombre}
                   className="w-full h-32 object-contain bg-slate-900 rounded"
                 />

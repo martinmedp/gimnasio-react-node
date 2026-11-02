@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import prisma from '../prisma';
 import { verificarToken, verificarRol, verificarPropioCliente } from '../middleware/auth';
+import { validarCuerpo } from '../utils/validar';
+import { esquemaPagoMembresia } from '../utils/esquemas';
 
 const router = Router();
 
@@ -126,7 +128,8 @@ router.put('/:id/estado', verificarToken, verificarRol('Administrador', 'Recepci
 // Guardia: una membresía solo puede tener UN pago válido (no anulado).
 // Hasta ahora solo lo impedía la pantalla (ocultaba el botón); aquí lo
 // exige el backend. Si el pago fue un error, hay que anularlo primero
-router.post('/:id/pagos', verificarToken, verificarRol('Administrador', 'Recepcionista'), async (req, res, next) => {
+// router.post('/:id/pagos', verificarToken, verificarRol('Administrador', 'Recepcionista'), async (req, res, next) => {
+router.post('/:id/pagos', verificarToken, verificarRol('Administrador', 'Recepcionista'), validarCuerpo(esquemaPagoMembresia), async (req, res, next) => {
   try {
     const pagoValido = await prisma.pago.findFirst({
       where: { membresiaId: Number(req.params.id), anulado: false },

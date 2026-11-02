@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 import prisma from '../prisma';
 import { verificarToken, verificarRol } from '../middleware/auth';
 import { rangoDeFechas } from '../utils/fechas';
+import { validarCuerpo } from '../utils/validar';
+import { esquemaGasto } from '../utils/esquemas';
 
 const router = Router();
 
@@ -62,7 +64,8 @@ router.get('/', verificarToken, verificarRol(...ROLES_GASTOS), async (req, res) 
 });
 
 // POST /gastos — registra un nuevo gasto
-router.post('/', verificarToken, verificarRol(...ROLES_GASTOS), async (req: any, res) => {
+// router.post('/', verificarToken, verificarRol(...ROLES_GASTOS), async (req: any, res) => {
+router.post('/', verificarToken, verificarRol(...ROLES_GASTOS), validarCuerpo(esquemaGasto), async (req: any, res) => {
   try {
     const { categoriaId, descripcion, monto, metodoPago } = req.body;
 

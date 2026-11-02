@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { QRCodeSVG } from 'qrcode.react'
 import { useAuth } from '../context/AuthContext'
 import { useNotification } from '../context/NotificationContext'
-import api from '../api'
+import api, { API_URL } from '../api'
 
 interface Cliente {
   id: number
@@ -62,7 +62,7 @@ function MiPerfilPage() {
         <div className="flex flex-col items-center gap-2">
           {cliente.fotoUrl ? (
             <img
-              src={`http://localhost:3000${cliente.fotoUrl}`}
+              src={`${API_URL}${cliente.fotoUrl}`}
               alt={cliente.nombre}
               className="w-32 h-32 object-cover rounded-full border-2 border-slate-600"
             />
