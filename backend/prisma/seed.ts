@@ -88,6 +88,14 @@ async function crearAdministrador() {
 }
 
 async function main() {
+  // Muestra contra qué base se va a trabajar, para no equivocarse de destino
+  try {
+    const base = new URL(process.env.DATABASE_URL ?? '').pathname.replace(/^\//, '');
+    console.log(`Base de datos: ${base}`);
+  } catch {
+    throw new Error('DATABASE_URL no está definida o no tiene un formato válido');
+  }
+
   await crearRoles();
   await crearCatalogos();
   await crearAdministrador();

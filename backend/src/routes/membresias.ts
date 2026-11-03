@@ -18,6 +18,73 @@ function calcularAlerta(fechaFin: Date | null): 'proxima' | 'vencida' | null {
   return null;
 }
 
+// Ruta exclusiva del CLIENTE. Un Cliente solo debe ver sus pagos VÁLIDOS y
+// sus datos básicos: los pagos anulados, el motivo de la anulación, quién
+// anuló y el cierre de caja son información interna del gimnasio.
+//
+// Con "select" se pide campo por campo lo que el Cliente puede ver, en vez
+// de pedir todo y ocultar algo después: lo que no se pide, no viaja.
+// Para el personal esta ruta no hace nada: next() pasa a la de abajo.
+// (Costo: para el personal la sesión se verifica dos veces en esta
+// dirección. Es una consulta liviana por clave primaria.)
+router.get('/cliente/:clienteId', verificarToken, async (req: any, res, next) => {
+  try {
+    if (req.usuario?.rol !== 'Cliente') {
+      return next();
+    }
+
+    // Un Cliente solo accede a su propia información
+    if (req.usuario.clienteId !== Number(req.params.clienteId)) {
+      return res.status(403).json({ error: 'Solo puedes acceder a tu propia información' });
+    }
+
+    const membresias = await prisma.membresia.findMany({
+      where: { clienteId: req.usuario.clienteId },
+      select: {
+        id: true,
+        fechaInicio: true,
+        fechaFin: true,
+        entradasRestantes: true,
+        estado: true,
+        plan: { select: { id: true, nombre: true, tipo: true, precio: true } },
+        pagos: {
+          where: { anulado: false },
+          select: {
+            id: true,
+            monto: true,
+            fecha: true,
+            metodoPago: true,
+            registradoPor: { select: { nombre: true } },
+          },
+          orderBy: { fecha: 'asc' },
+        },
+      },
+      orderBy: { fechaInicio: 'desc' },
+    });
+
+    // Alerta de vencimiento: solo para membresías activas. Vencida si la
+    // fecha de fin ya pasó; próxima si faltan 5 días o menos
+    const ahora = Date.now();
+    const conAlerta = membresias.map((membresia) => {
+      let alerta: 'proxima' | 'vencida' | null = null;
+      if (membresia.estado === 'activa' && membresia.fechaFin) {
+        const dias = Math.ceil((membresia.fechaFin.getTime() - ahora) / (1000 * 60 * 60 * 24));
+        if (dias < 0) alerta = 'vencida';
+        else if (dias <= 5) alerta = 'proxima';
+      }
+      return { ...membresia, alerta };
+    });
+
+    res.json(conAlerta);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Error al obtener las membresías' });
+  }
+});
+
+
+
+
 // GET /membresias/cliente/:clienteId — Administrador, Recepcionista, y el
 // propio Cliente pueden VER el historial; solo lectura para todos
 router.get(
